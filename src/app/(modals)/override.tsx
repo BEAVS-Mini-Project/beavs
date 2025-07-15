@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingVi
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Shield } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
-import { useSelectedCourse, Course } from '../../contexts/SelectedCourseContext';
+import { useSelectedCourseStore, Course } from '@/contexts/SelectedCourseContext';
 import { supabase } from '../../utils/supabase';
 
 export default function ManualOverrideScreen() {
@@ -16,7 +16,7 @@ export default function ManualOverrideScreen() {
   const [authChecked, setAuthChecked] = useState(false);
 
   const router = useRouter();
-  const { selectedCourse } = useLocalSearchParams();
+  const selectedCourse  = useSelectedCourseStore((state) => state.selectedCourse);
   const course: Course | null = selectedCourse;
 
   // Auth check for invigilator

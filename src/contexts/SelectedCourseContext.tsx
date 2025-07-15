@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import { create } from 'zustand';
 
 export type Course = {
   id: string;
@@ -9,25 +9,13 @@ export type Course = {
   hall?: string;
 };
 
-type SelectedCourseContextType = {
+type SelectedCourseState = {
   selectedCourse: Course | null;
   setSelectedCourse: (course: Course | null) => void;
 };
 
-const SelectedCourseContext = createContext<SelectedCourseContextType>({
+export const useSelectedCourseStore = create<SelectedCourseState>((set) => ({
   selectedCourse: null,
-  setSelectedCourse: () => {},
-});
+  setSelectedCourse: (course) => set({ selectedCourse: course }),
+}));
 
-export function SelectedCourseProvider({ children }: { children: ReactNode }) {
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  return (
-    <SelectedCourseContext.Provider value={{ selectedCourse, setSelectedCourse }}>
-      {children}
-    </SelectedCourseContext.Provider>
-  );
-}
-
-export function useSelectedCourse() {
-  return useContext(SelectedCourseContext);
-} 

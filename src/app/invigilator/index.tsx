@@ -5,7 +5,7 @@ import { Users, Clock, BarChart3 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useSelectedCourse } from '@/contexts/SelectedCourseContext';
+import { useSelectedCourseStore } from '@/contexts/SelectedCourseContext';
 
 interface Course {
   id: string;
@@ -18,7 +18,7 @@ interface Course {
 
 export default function InvigilatorIndex() {
   const router = useRouter();
-  const { setSelectedCourse } = useSelectedCourse();
+  const setSelectedCourse   = useSelectedCourseStore((state) => state.setSelectedCourse);
   const hallName = 'Hall A - Main Building';
 
 

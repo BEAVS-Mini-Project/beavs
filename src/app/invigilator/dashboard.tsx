@@ -4,14 +4,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { UserCheck, Users, FileText, RefreshCw, LogOut, Wifi, WifiOff } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
-import { useSelectedCourse } from '../../contexts/SelectedCourseContext';
+import { useSelectedCourseStore } from '@/contexts/SelectedCourseContext';
 import { supabase } from '@/utils/supabase';
 
 export default function DashboardScreen() {
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const router = useRouter();
-  const { selectedCourse } = useSelectedCourse();
+  const selectedCourse = useSelectedCourseStore((state) => state.selectedCourse);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 

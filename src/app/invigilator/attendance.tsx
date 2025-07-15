@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSelectedCourse } from '../../contexts/SelectedCourseContext';
+import { useSelectedCourseStore } from '@/contexts/SelectedCourseContext';
 import { Fingerprint } from 'lucide-react-native';
 
 export default function AttendanceScreen() {
-  const { selectedCourse } = useSelectedCourse();
+  const selectedCourse = useSelectedCourseStore((state) => state.selectedCourse);
   const router = useRouter();
   const [scanStatus, setScanStatus] = useState('Place your finger on the scanner');
   const [scanning, setScanning] = useState(false);
@@ -38,7 +38,7 @@ export default function AttendanceScreen() {
         </TouchableOpacity>
         <Text className={`mt-1 ${scanning ? 'text-blue-600' : 'text-gray-500'}`}>{scanStatus}</Text>
       </View>
-      <TouchableOpacity onPress={() => router.push(`/override/${selectedCourse}`)} className="mt-2 bg-orange-600 rounded-lg px-6 py-3">
+      <TouchableOpacity onPress={() => router.push(`/override`)} className="mt-2 bg-orange-600 rounded-lg px-6 py-3">
         <Text className="text-white font-semibold">Manual Override</Text>
       </TouchableOpacity>
     </View>
