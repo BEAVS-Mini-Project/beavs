@@ -1,4 +1,4 @@
-{
+export default {
   "expo": {
     "name": "beavs",
     "slug": "beavs",
@@ -10,16 +10,16 @@
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "resizeMode": "cover",
+      // "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/splash-icon.png",
+        // "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true
     },
