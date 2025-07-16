@@ -38,7 +38,7 @@ export default function AttendanceScreen() {
         </TouchableOpacity>
         <Text className={`mt-1 ${scanning ? 'text-blue-600' : 'text-gray-500'}`}>{scanStatus}</Text>
       </View>
-      <TouchableOpacity onPress={() => router.push(`/override`)} className="mt-2 bg-orange-600 rounded-lg px-6 py-3">
+      <TouchableOpacity onPress={() => router.push('/invigilator/override')} className="mt-2 bg-orange-600 rounded-lg px-6 py-3">
         <Text className="text-white font-semibold">Manual Override</Text>
       </TouchableOpacity>
     </View>

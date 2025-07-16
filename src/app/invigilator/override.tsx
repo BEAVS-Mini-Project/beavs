@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Shield } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 import { useSelectedCourseStore, Course } from '@/contexts/SelectedCourseContext';
-import { supabase } from '../../utils/supabase';
+import { supabase } from '@/utils/supabase';
 
 export default function ManualOverrideScreen() {
   const [pin, setPin] = useState('');
@@ -52,24 +52,7 @@ export default function ManualOverrideScreen() {
     checkAuth();
   }, []);
 
-  const handleAuthenticate = () => {
-    if (pin === '1234') {
-      setIsAuthenticated(true);
-      Toast.show({
-        type: 'success',
-        text1: 'Authentication Successful',
-        text2: 'You can now proceed with manual override',
-      });
-    } else {
-      Toast.show({
-        type: 'error',
-        text1: 'Authentication Failed',
-        text2: 'Invalid PIN. Use 1234 for demo',
-      });
-    }
-  };
-
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!studentId || !studentName || !reason || !answerSheetNumber) {
       Toast.show({
         type: 'error',
@@ -78,12 +61,58 @@ export default function ManualOverrideScreen() {
       });
       return;
     }
-    Toast.show({
-      type: 'success',
-      text1: 'Manual Override Recorded',
-      text2: `${studentName} marked manually`,
-    });
-    router.back();
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+      const invigilatorId = session.user.id;
+      // Find the current exam session for this course (today)
+      const today = new Date().toISOString().split('T')[0];
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('exam_session')
+        .select('id')
+        .eq('course_id', course?.id)
+        .eq('exam_date', today)
+        .single();
+      if (sessionError || !sessionData) throw sessionError || new Error('No exam session found');
+      // Find the room assigned to this invigilator for this course
+      const { data: roomData, error: roomError } = await supabase
+        .from('exam_room')
+        .select('id')
+        .eq('invigilator_id', invigilatorId)
+        .single();
+      if (roomError || !roomData) throw roomError || new Error('No room found');
+      // Insert manual override attendance
+      const { error: insertError } = await supabase
+        .from('exam_allocation')
+        .insert([
+          {
+            exam_session_id: sessionData.id,
+            exam_room_id: roomData.id,
+            student_id: studentId,
+            seat_number: answerSheetNumber,
+            has_checked_in: true,
+            check_in_time: new Date().toISOString(),
+            verified_by: invigilatorId,
+            fingerprint_matched: false,
+            manual_override: true, // If this column does not exist, add it in a migration
+            override_reason: reason, // If this column does not exist, add it in a migration
+            student_name: studentName, // For redundancy; optional
+          },
+        ]);
+      if (insertError) throw insertError;
+      Toast.show({
+        type: 'success',
+        text1: 'Manual Override Recorded',
+        text2: `${studentName} marked manually`,
+      });
+      router.back();
+    } catch (err: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: err.message || 'Failed to record manual override',
+      });
+    }
   };
 
   if (!authChecked) {
@@ -132,7 +161,7 @@ export default function ManualOverrideScreen() {
                 className='border border-orange-300 rounded px-3 py-2 mt-2 bg-white'
               />
               <TouchableOpacity
-                onPress={handleAuthenticate}
+                // onPress={handleAuthenticate}
                 className='bg-orange-600 rounded mt-4 py-3'
               >
                 <Text className='text-center text-white font-medium'>Authenticate</Text>

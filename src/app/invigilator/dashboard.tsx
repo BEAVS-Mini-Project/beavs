@@ -1,63 +1,97 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { UserCheck, Users, FileText, RefreshCw, LogOut, Wifi, WifiOff } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
 import { useSelectedCourseStore } from '@/contexts/SelectedCourseContext';
-import { supabase } from '@/utils/supabase';
+import { supabase, fetchCourses, fetchTodayExamSessions } from '@/utils/supabase';
 
 export default function DashboardScreen() {
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [examSessions, setExamSessions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
   const selectedCourse = useSelectedCourseStore((state) => state.selectedCourse);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
-  // Mock attendance data
-  const attendanceRecords = [
-    { id: '1', studentName: 'John Doe', studentId: '001', status: 'present', timestamp: Date.now() },
-    { id: '2', studentName: 'Jane Smith', studentId: '002', status: 'manual_override', timestamp: Date.now() },
-    { id: '3', studentName: 'Mike Johnson', studentId: '003', status: 'present', timestamp: Date.now() },
-  ];
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const hallName = selectedCourse ? selectedCourse.title : 'No Course Selected';
-  const presentCount = attendanceRecords.filter(r => r.status === 'present').length;
-  const overrideCount = attendanceRecords.filter(r => r.status === 'manual_override').length;
-  const totalExpected = 150;
-  const absentCount = totalExpected - presentCount - overrideCount;
-
-  const handleSync = () => {
-    if (!isOnline) {
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [coursesData, sessionsData] = await Promise.all([
+        fetchCourses(),
+        fetchTodayExamSessions()
+      ]);
+      setCourses(coursesData);
+      setExamSessions(sessionsData);
+    } catch (error) {
+      console.error('Error loading data:', error);
       Toast.show({
         type: 'error',
-        text1: 'No Internet Connection',
-        text2: 'Sync pending - will retry when online',
+        text1: 'Error',
+        text2: 'Failed to load dashboard data'
       });
-      return;
+    } finally {
+      setLoading(false);
     }
-    setIsSyncing(true);
-    // TODO; handle syncing to database
-    setTimeout(() => {
-      setIsSyncing(false);
-      Toast.show({
-        type: 'success',
-        text1: 'Sync Complete!',
-        text2: `${attendanceRecords.length} records uploaded successfully`,
-      });
-    }, 2000);
   };
 
-  const handleLogout = () => {
-    Toast.show({
-      type: 'info',
-      text1: 'Logging out',
-      text2: 'You have been logged out.',
-    });
-    supabase.auth.signOut();
-    router.replace('/login');
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      await loadData();
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Data synced successfully'
+      });
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to sync data'
+      });
+    } finally {
+      setIsSyncing(false);
+    }
   };
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      router.replace('/login');
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Failed to logout'
+      });
+    }
+  };
+
+  const hallName = selectedCourse?.hall || 'Main Hall';
+  const totalStudents = selectedCourse?.expectedCount || 0;
+  const presentStudents = Math.floor(totalStudents * 0.85); // Mock attendance //TODO: replace with scan count
+  const overrideStudents = 0 //attendanceRecords.filter(r => r.status === 'manual_override').length; //TODO: replace with actual overide count
+  const absentStudents = totalStudents - presentStudents; - overrideStudents;
+
+  if (loading) {
+    return (
+      <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
+        <View className="flex-1 justify-center items-center">
+          <Text className={`text-lg ${isDark ? 'text-white' : 'text-black'}`}>Loading dashboard...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className={`flex-1 gap-2 ${isDark ? 'bg-black' : 'bg-white'}`}>
@@ -69,35 +103,55 @@ export default function DashboardScreen() {
             <Text className={`${isDark ? 'text-black' : 'text-white'} ml-1 text-sm`}>{isOnline ? 'Online' : 'Offline'}</Text>
           </View>
         </View>
+        <View className={`${isDark ? 'bg-black' : 'bg-white'} px-3 py-1 rounded-full`}>
+          <Text className={`${isDark ? 'text-white' : 'text-black'} text-sm font-medium`}>
+            {new Date().toLocaleDateString()}
+          </Text>
+        </View>
       </View>
 
-      <ScrollView className={`p-4 space-x-4 ${isDark ?'bg-black':'bg-white'}`}>
-        <View className="flex-row justify-between flex-wrap gap-4">
-          <StatsCard label="Present" count={presentCount} icon={<UserCheck size={32} color="green" />} color="text-green-600" isDark={isDark} />
-          <StatsCard label="Absent" count={absentCount} icon={<Users size={32} color="red" />} color="text-red-600" isDark={isDark} />
-          <StatsCard label="Manual Overrides" count={overrideCount} icon={<FileText size={32} color="orange" />} color="text-orange-600" isDark={isDark} />
+      <ScrollView className="flex-1 px-4">
+      <View className="flex-row justify-between flex-wrap gap-4">
+          <StatsCard 
+            label="Total Students" 
+            count={totalStudents} 
+            icon={<Users size={24} color={isDark ? 'white' : '#3B82F6'} />} 
+            color="#3B82F6"
+            isDark={isDark}
+          />
+          <StatsCard 
+            label="Present" 
+            count={presentStudents} 
+            icon={<UserCheck size={24} color={isDark ? 'white' : '#10B981'} />} 
+            color="#10B981"
+            isDark={isDark}
+          />
+          <StatsCard 
+          label="Manual Overrides" 
+          count={overrideStudents} 
+          icon={<FileText size={32} color="orange" />} 
+          color="text-orange-600" 
+          isDark={isDark} />
+       
+          <StatsCard 
+            label="Absent" 
+            count={absentStudents} 
+            icon={<FileText size={24} color={isDark ? 'white' : '#EF4444'} />} 
+            color="#EF4444"
+            isDark={isDark}
+          />
+          <StatsCard 
+            label="Today's Sessions" 
+            count={examSessions.length} 
+            icon={<FileText size={24} color={isDark ? 'white' : '#8B5CF6'} />} 
+            color="#8B5CF6"
+            isDark={isDark}
+          />
         </View>
 
-        <QuickAction text={isSyncing ? 'Syncing...' : 'Sync Data'} icon={<RefreshCw size={20} />} onPress={handleSync} isDark={isDark} />
-        <QuickAction text="Logout" icon={<LogOut size={20} />} onPress={handleLogout} danger isDark={isDark} />
-
-        {attendanceRecords.length > 0 && (
-          <View className="mt-4">
-            <Text className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-black'}`}>Recent Activity</Text>
-            {attendanceRecords.slice(-3).reverse().map(record => (
-              <View key={record.id} className={`flex-row justify-between items-center p-3 rounded mb-2 ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                <View>
-                  <Text className={`font-medium ${isDark ? 'text-white' : 'text-black'}`}>{record.studentName}</Text>
-                  <Text className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>{record.studentId}</Text>
-                </View>
-                <View className="items-end">
-                  <Text className={`text-xs font-bold px-2 py-1 rounded ${record.status === 'present' ? (isDark ? 'bg-green-800 text-green-100' : 'bg-green-100 text-green-800') : (isDark ? 'bg-orange-800 text-orange-100' : 'bg-orange-100 text-orange-800')}`}>{record.status === 'present' ? 'Present' : 'Override'}</Text>
-                  <Text className={`text-xs mt-1 ${isDark ? 'text-gray-300' : 'text-gray-500'}`}>{new Date(record.timestamp).toLocaleTimeString()}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
+        <Divider style={{ marginVertical: 16 }} />
+        <QuickAction text={isSyncing ? 'Syncing...' : 'Sync Data'} icon={<RefreshCw size={20} color={isDark ? 'white' : '#3B82F6'} />} onPress={handleSync} loading={isSyncing} isDark={isDark} />
+        <QuickAction text="Logout" icon={<LogOut size={20} color={isDark ? 'white' : '#EF4444'} />} onPress={handleLogout} danger isDark={isDark} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -111,12 +165,17 @@ const StatsCard = ({ label, count, icon, color, isDark }: any) => (
   </View>
 );
 
-const QuickAction = ({ text, icon, onPress, danger, isDark }: any) => (
+const QuickAction = ({ text, icon, onPress, danger, loading, isDark }: any) => (
   <TouchableOpacity
     onPress={onPress}
+    disabled={loading}
     className={`flex-row items-center p-3 rounded shadow m-2 ${danger ? 'border border-red-600' : ''} ${isDark ? 'bg-gray-800' : 'bg-white'}`}
   >
     {icon}
     <Text className={`ml-2 text-base ${danger ? 'text-red-600' : isDark ? 'text-white' : 'text-black'}`}>{text}</Text>
   </TouchableOpacity>
+);
+
+const Divider = ({ style }: any) => (
+  <View className={`h-px ${style?.marginVertical ? 'my-4' : ''}`} style={[{ backgroundColor: '#E5E7EB' }, style]} />
 );
