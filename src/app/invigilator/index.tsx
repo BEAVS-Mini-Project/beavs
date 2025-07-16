@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, useColorScheme } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, useColorScheme,ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Book, Users, Clock, ArrowRight,BarChart3 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -46,8 +46,10 @@ export default function InvigilatorIndex() {
     return (
       <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
         <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#3B82F6" />
           <Text className={`text-lg ${isDark ? 'text-white' : 'text-black'}`}>Loading courses...</Text>
         </View>
+       
       </SafeAreaView>
     );
   }

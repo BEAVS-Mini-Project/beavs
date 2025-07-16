@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Shield } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 import { useSelectedCourseStore, Course } from '@/contexts/SelectedCourseContext';
-import { supabase } from '@/utils/supabase';
+import { supabase, logAttendance } from '@/utils/supabase';
 
 export default function ManualOverrideScreen() {
   const [pin, setPin] = useState('');
@@ -24,11 +24,7 @@ export default function ManualOverrideScreen() {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        Toast.show({
-          type: 'error',
-          text1: 'Not Authenticated',
-          text2: 'Please log in to perform manual override.',
-        });
+        setAuthChecked(true); // <-- set this before redirect
         router.replace('/login');
         return;
       }
@@ -39,11 +35,7 @@ export default function ManualOverrideScreen() {
         .eq('id', userId)
         .single();
       if (profile?.role !== 'invigilator') {
-        Toast.show({
-          type: 'error',
-          text1: 'Access Denied',
-          text2: 'Only invigilators can perform manual override.',
-        });
+        setAuthChecked(true); // <-- set this before redirect
         router.replace('/login');
         return;
       }
@@ -81,10 +73,10 @@ export default function ManualOverrideScreen() {
         .eq('invigilator_id', invigilatorId)
         .single();
       if (roomError || !roomData) throw roomError || new Error('No room found');
-      // Insert manual override attendance
-      const { error: insertError } = await supabase
+      // Upsert (insert or update) exam_allocation
+      const { data: allocation, error: allocError } = await supabase
         .from('exam_allocation')
-        .insert([
+        .upsert([
           {
             exam_session_id: sessionData.id,
             exam_room_id: roomData.id,
@@ -94,12 +86,23 @@ export default function ManualOverrideScreen() {
             check_in_time: new Date().toISOString(),
             verified_by: invigilatorId,
             fingerprint_matched: false,
-            manual_override: true, // If this column does not exist, add it in a migration
-            override_reason: reason, // If this column does not exist, add it in a migration
-            student_name: studentName, // For redundancy; optional
+            was_manually_verified: true,
+            verified_student_number: studentId,
+            manual_verification_note: reason,
           },
-        ]);
-      if (insertError) throw insertError;
+        ], { onConflict: 'exam_session_id,exam_room_id,student_id' })
+        .select()
+        .single();
+      if (allocError || !allocation) throw allocError || new Error('Failed to upsert allocation');
+      // Insert into attendance_log
+      await logAttendance({
+        exam_allocation_id: allocation.id,
+        verified_by: invigilatorId,
+        method: 'manual',
+        note: reason,
+        student_number: studentId,
+        fingerprint_matched: false
+      });
       Toast.show({
         type: 'success',
         text1: 'Manual Override Recorded',

@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, useColorScheme } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, useColorScheme, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BarChart3, Users, FileText, TrendingUp, Calendar, Download } from 'lucide-react-native';
-import { fetchTodayExamSessions, fetchStudents, fetchExamAllocations } from '@/utils/supabase';
+import { supabase } from '@/utils/supabase';
 import Toast from 'react-native-toast-message';
 
 export default function ReportsScreen() {
   const [examSessions, setExamSessions] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [examAllocations, setExamAllocations] = useState<any[]>([]);
+  const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -20,21 +23,27 @@ export default function ReportsScreen() {
   const loadReportData = async () => {
     try {
       setLoading(true);
-      const [sessionsData, studentsData, allocationsData] = await Promise.all([
-        fetchTodayExamSessions(),
-        fetchStudents(),
-        fetchExamAllocations()
+      setError(null);
+      // Fetch all data in parallel
+      const [sessionsRes, studentsRes, allocationsRes, logsRes, deptsRes] = await Promise.all([
+        supabase.from('exam_session').select('*, course:course_id(*, program:program_id(*, department:department_id(*)))'),
+        supabase.from('student').select('*'),
+        supabase.from('exam_allocation').select('*'),
+        supabase.from('attendance_log').select('*'),
+        supabase.from('department').select('id, name'),
       ]);
-      setExamSessions(sessionsData);
-      setStudents(studentsData);
-      setExamAllocations(allocationsData);
-    } catch (error) {
-      console.error('Error loading report data:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to load report data'
-      });
+      if (sessionsRes.error) throw sessionsRes.error;
+      if (studentsRes.error) throw studentsRes.error;
+      if (allocationsRes.error) throw allocationsRes.error;
+      if (logsRes.error) throw logsRes.error;
+      if (deptsRes.error) throw deptsRes.error;
+      setExamSessions(sessionsRes.data || []);
+      setStudents(studentsRes.data || []);
+      setExamAllocations(allocationsRes.data || []);
+      setAttendanceLogs(logsRes.data || []);
+      setDepartments(deptsRes.data || []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load report data');
     } finally {
       setLoading(false);
     }
@@ -52,16 +61,43 @@ export default function ReportsScreen() {
     return (
       <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
         <View className="flex-1 justify-center items-center">
-          <Text className={`text-lg ${isDark ? 'text-white' : 'text-black'}`}>Loading reports...</Text>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text className={`mt-4 ${isDark ? 'text-white' : 'text-black'}`}>Loading reports...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  if (error) {
+    return (
+      <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
+        <View className="flex-1 justify-center items-center">
+          <Text className="text-red-600">{error}</Text>
         </View>
       </SafeAreaView>
     );
   }
 
+  // Analytics
   const totalStudents = students.length;
   const totalSessions = examSessions.length;
   const totalAllocations = examAllocations.length;
   const attendanceRate = totalStudents > 0 ? Math.round((totalAllocations / totalStudents) * 100) : 0;
+  const manualCount = attendanceLogs.filter((log: any) => log.method === 'manual').length;
+  const biometricCount = attendanceLogs.filter((log: any) => log.method === 'biometric').length;
+
+  // Department breakdown
+  const departmentStats = departments.map((dept: any) => {
+    const deptCourses = examSessions.filter((s: any) => s.course?.program?.department?.id === dept.id);
+    const deptAllocations = examAllocations.filter((a: any) => {
+      const session = examSessions.find((s: any) => s.id === a.exam_session_id);
+      return session && session.course?.program?.department?.id === dept.id;
+    });
+    return {
+      name: dept.name,
+      sessions: deptCourses.length,
+      allocations: deptAllocations.length,
+    };
+  });
 
   return (
     <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
@@ -105,23 +141,35 @@ export default function ReportsScreen() {
           />
         </View>
 
+        <View className="flex-row justify-between mb-4">
+          <StatsCard 
+            label="Manual Overrides" 
+            count={manualCount} 
+            icon={<FileText size={24} color={isDark ? 'white' : '#F59E0B'} />} 
+            color="#F59E0B"
+            isDark={isDark}
+          />
+          <StatsCard 
+            label="Biometric Scans" 
+            count={biometricCount} 
+            icon={<FileText size={24} color={isDark ? 'white' : '#3B82F6'} />} 
+            color="#3B82F6"
+            isDark={isDark}
+          />
+        </View>
+
         <View className="mb-4">
-          <Text className={`text-lg font-semibold mb-3 ${isDark ? 'text-white' : 'text-black'}`}>Today's Exam Sessions</Text>
-          {examSessions.length === 0 ? (
+          <Text className={`text-lg font-semibold mb-3 ${isDark ? 'text-white' : 'text-black'}`}>Department Breakdown</Text>
+          {departmentStats.length === 0 ? (
             <View className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
-              <Text className={`text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>No exam sessions today</Text>
+              <Text className={`text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>No department data</Text>
             </View>
           ) : (
             <View className="space-y-2">
-              {examSessions.map((session) => (
-                <View key={session.id} className={`p-3 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <Text className={`font-semibold ${isDark ? 'text-white' : 'text-black'}`}>{session.course_title}</Text>
-                  <Text className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    {session.exam_date} • {session.start_time} - {session.end_time}
-                  </Text>
-                  <Text className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                    Room: {session.exam_room}
-                  </Text>
+              {departmentStats.map((dept) => (
+                <View key={dept.name} className={`p-3 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+                  <Text className={`font-semibold ${isDark ? 'text-white' : 'text-black'}`}>{dept.name}</Text>
+                  <Text className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Sessions: {dept.sessions} | Allocations: {dept.allocations}</Text>
                 </View>
               ))}
             </View>

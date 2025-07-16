@@ -110,3 +110,34 @@ export async function fetchInvigilatorCourses() {
   return unique;
 }
         
+// Insert a record into attendance_log
+export async function logAttendance({
+  exam_allocation_id,
+  verified_by,
+  method,
+  note,
+  student_number,
+  fingerprint_matched
+}: {
+  exam_allocation_id: string,
+  verified_by: string,
+  method: 'manual' | 'biometric',
+  note?: string,
+  student_number: string,
+  fingerprint_matched?: boolean
+}) {
+  const { error } = await supabase
+    .from('attendance_log')
+    .insert([
+      {
+        exam_allocation_id,
+        verified_by,
+        method,
+        note,
+        student_number,
+        fingerprint_matched
+      }
+    ]);
+  if (error) throw error;
+}
+        

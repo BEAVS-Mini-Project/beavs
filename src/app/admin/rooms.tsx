@@ -1,19 +1,79 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { supabase } from '@/utils/supabase';
 
 export default function RoomsScreen() {
-  const [rooms] = useState([
-    { id: 'A101', capacity: 30, assigned: 28, invigilator: 'John Smith', status: 'active' },
-    { id: 'A102', capacity: 25, assigned: 25, invigilator: 'Sarah Johnson', status: 'active' },
-    { id: 'B201', capacity: 40, assigned: 35, invigilator: 'Mike Davis', status: 'active' },
-    { id: 'B202', capacity: 35, assigned: 0, invigilator: 'Unassigned', status: 'inactive' },
-  ]);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadRooms();
+  }, []);
+
+  const loadRooms = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      // Fetch all rooms
+      const { data: roomData, error: roomError } = await supabase
+        .from('exam_room')
+        .select('id, name, capacity, invigilator_id');
+      if (roomError) throw roomError;
+      // Fetch all allocations to count assigned students per room
+      const { data: allocations, error: allocError } = await supabase
+        .from('exam_allocation')
+        .select('exam_room_id');
+      if (allocError) throw allocError;
+      // Fetch invigilator names
+      const invigilatorIds = [...new Set(roomData.map((r: any) => r.invigilator_id).filter(Boolean))];
+      let invigilators: Record<string, string> = {};
+      if (invigilatorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name');
+        if (profiles) {
+          invigilators = Object.fromEntries(profiles.map((p: any) => [p.id, p.full_name]));
+        }
+      }
+      // Compose room info
+      const roomsWithStats = roomData.map((room: any) => {
+        const assigned = allocations.filter((a: any) => a.exam_room_id === room.id).length;
+        return {
+          ...room,
+          assigned,
+          invigilator: room.invigilator_id ? (invigilators[room.invigilator_id] || 'Assigned') : 'Unassigned',
+          status: assigned > 0 ? 'active' : 'inactive',
+        };
+      });
+      setRooms(roomsWithStats);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load rooms');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View className="flex-1 justify-center items-center">
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text className="mt-4 text-gray-600">Loading rooms...</Text>
+      </View>
+    );
+  }
+  if (error) {
+    return (
+      <View className="flex-1 justify-center items-center">
+        <Text className="text-red-600">{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView className="flex-1 bg-gray-50 dark:bg-gray-900">
       <View className="p-6">
-
         {/* Room Cards */}
         <View className="space-y-4 gap-2">
           {rooms.map((room) => (
@@ -23,7 +83,7 @@ export default function RoomsScreen() {
             >
               <View className="flex-row items-center justify-between mb-3">
                 <Text className="text-xl font-bold text-gray-800 dark:text-white">
-                  Room {room.id}
+                  {room.name}
                 </Text>
                 <View className={`px-3 py-1 rounded-full ${
                   room.status === 'active' 
