@@ -101,10 +101,6 @@ export default function ReportsScreen() {
 
   return (
     <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
-      <View className={`${isDark ? 'bg-white' : 'bg-primary'} px-4 py-2`}>
-        <Text className={`${isDark ? 'text-black' : 'text-white'} font-bold text-xl`}>Reports</Text>
-        <Text className={`${isDark ? 'text-black' : 'text-white'} text-sm opacity-80`}>Exam session analytics</Text>
-      </View>
 
       <ScrollView className="flex-1 p-4">
         <View className="flex-row justify-between mb-4">
