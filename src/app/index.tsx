@@ -64,7 +64,7 @@ const Index = () => {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 items-center justify-center bg-gradient-to-br from-blue-600 to-blue-500 relative">
+    <SafeAreaView className="flex-1 items-center justify-center bg-gradient-to-br from-blue-600 to-blue-500 dark:from-gray-900 dark:to-gray-800 relative">
       {/* Floating icons */}
       <View className="absolute top-10 left-5 opacity-30">
         <Book size={32} color="white" />
@@ -76,16 +76,16 @@ const Index = () => {
       <BlurView intensity={30} tint="light" className="rounded-full p-6 mb-6 items-center justify-center">
         <GraduationCap size={64} color="white" />
       </BlurView>
-      <Text className="text-white text-4xl font-bold mb-2">BEAVS</Text>
-      <Text className="text-white text-lg opacity-90">Biometric Exam Attendance</Text>
-      <Text className="text-white text-base opacity-80">Verification System</Text>
+      <Text className="text-white dark:text-blue-400 text-4xl font-bold mb-2">BEAVS</Text>
+      <Text className="text-white dark:text-blue-200 text-lg opacity-90">Biometric Exam Attendance</Text>
+      <Text className="text-white dark:text-blue-200 text-base opacity-80">Verification System</Text>
       {/* Pulsing dots */}
       <View className="flex flex-row space-x-2 mt-8 mb-4">
         <View className="w-2 h-2 bg-white/60 rounded-full" />
         <View className="w-2 h-2 bg-white/60 rounded-full" />
         <View className="w-2 h-2 bg-white/60 rounded-full" />
       </View>
-      <Text className="text-white text-xs opacity-70 absolute bottom-10">
+      <Text className="text-white dark:text-blue-200 text-xs opacity-70 absolute bottom-10">
         Academic Excellence Through Technology
       </Text>
     </SafeAreaView>

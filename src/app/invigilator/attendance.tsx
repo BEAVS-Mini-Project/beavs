@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, useColorScheme } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSelectedCourseStore } from '@/contexts/SelectedCourseContext';
 import { Fingerprint } from 'lucide-react-native';
@@ -9,6 +9,8 @@ export default function AttendanceScreen() {
   const router = useRouter();
   const [scanStatus, setScanStatus] = useState('Place your finger on the scanner');
   const [scanning, setScanning] = useState(false);
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
   const handleFingerprintScan = () => {
     setScanning(true);
@@ -20,14 +22,14 @@ export default function AttendanceScreen() {
   };
 
   return (
-    <View className="flex-1 justify-center items-center">
-      <Text className="text-2xl m-5 dark:text-muted-foreground">
+    <View className={`flex-1 justify-center items-center ${isDark ? 'bg-black' : 'bg-white'}`}> 
+      <Text className={`text-2xl m-5 ${isDark ? 'text-muted-foreground' : 'text-black'}`}>
         Attendance for {selectedCourse ? selectedCourse.title : 'No course selected'}
       </Text>
       {/* Fingerprint Section */}
       <View className="items-center mb-8">
-        <View className="bg-gray-100 rounded-full p-8 mb-3 border-2 border-gray-300">
-          <Fingerprint size={64} color={scanning ? '#2563eb' : '#6b7280'} />
+        <View className={`rounded-full p-8 mb-3 border-2 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-gray-100 border-gray-300'}`}>
+          <Fingerprint size={64} color={scanning ? '#2563eb' : (isDark ? '#fff' : '#6b7280')} />
         </View>
         <TouchableOpacity
           onPress={handleFingerprintScan}
@@ -36,7 +38,7 @@ export default function AttendanceScreen() {
         >
           <Text className="text-white font-bold text-lg">{scanning ? 'Scanning...' : 'Scan Fingerprint'}</Text>
         </TouchableOpacity>
-        <Text className={`mt-1 ${scanning ? 'text-blue-600' : 'text-gray-500'}`}>{scanStatus}</Text>
+        <Text className={`mt-1 ${scanning ? 'text-blue-600' : isDark ? 'text-gray-400' : 'text-gray-500'}`}>{scanStatus}</Text>
       </View>
       <TouchableOpacity onPress={() => router.push('/invigilator/override')} className="mt-2 bg-orange-600 rounded-lg px-6 py-3">
         <Text className="text-white font-semibold">Manual Override</Text>

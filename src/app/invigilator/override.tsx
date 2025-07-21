@@ -1,48 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { Shield } from 'lucide-react-native';
-import Toast from 'react-native-toast-message';
-import { useSelectedCourseStore, Course } from '@/contexts/SelectedCourseContext';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, useColorScheme } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { useSelectedCourseStore } from '@/contexts/SelectedCourseContext';
 import { supabase, logAttendance } from '@/utils/supabase';
+import Toast from 'react-native-toast-message';
 
 export default function ManualOverrideScreen() {
-  const [pin, setPin] = useState('');
   const [studentId, setStudentId] = useState('');
   const [studentName, setStudentName] = useState('');
-  const [reason, setReason] = useState('');
   const [answerSheetNumber, setAnswerSheetNumber] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [reason, setReason] = useState('');
   const [authChecked, setAuthChecked] = useState(false);
-
+  const [course, setCourse] = useState<any>(null);
   const router = useRouter();
-  const selectedCourse  = useSelectedCourseStore((state) => state.selectedCourse);
-  const course: Course | null = selectedCourse;
+  const selectedCourse = useSelectedCourseStore((state) => state.selectedCourse);
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
-  // Auth check for invigilator
   useEffect(() => {
-    const checkAuth = async () => {
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
+    if (selectedCourse) {
+      setCourse(selectedCourse);
+    }
+  }, [selectedCourse]);
+
+  const checkAuth = async () => {
+    try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        setAuthChecked(true); // <-- set this before redirect
-        router.replace('/login');
-        return;
-      }
-      const userId = session.user.id;
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-      if (profile?.role !== 'invigilator') {
-        setAuthChecked(true); // <-- set this before redirect
         router.replace('/login');
         return;
       }
       setAuthChecked(true);
-    };
-    checkAuth();
-  }, []);
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      router.replace('/login');
+    }
+  };
 
   const handleConfirm = async () => {
     if (!studentId || !studentName || !reason || !answerSheetNumber) {
@@ -57,6 +55,7 @@ export default function ManualOverrideScreen() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
       const invigilatorId = session.user.id;
+      
       // Find the current exam session for this course (today)
       const today = new Date().toISOString().split('T')[0];
       const { data: sessionData, error: sessionError } = await supabase
@@ -66,43 +65,42 @@ export default function ManualOverrideScreen() {
         .eq('exam_date', today)
         .single();
       if (sessionError || !sessionData) throw sessionError || new Error('No exam session found');
+      
       // Find the room assigned to this invigilator for this course
-      const { data: roomData, error: roomError } = await supabase
-        .from('exam_room')
+      const { data: assignmentData, error: assignmentError } = await supabase
+        .from('invigilation_assignment')
+        .select(`
+          exam_room:exam_room_id(id)
+        `)
+        .eq('lecturer_id', invigilatorId)
+        .eq('exam_session_id', sessionData.id)
+        .single();
+      if (assignmentError || !assignmentData) throw assignmentError || new Error('No invigilation assignment found');
+      
+      const roomId = (assignmentData as any)?.exam_room?.id;
+      if (!roomId) throw new Error('No room found in assignment');
+      
+      // Find the course room allocation for this session and room
+      const { data: allocationData, error: allocError } = await supabase
+        .from('course_room_allocation')
         .select('id')
-        .eq('invigilator_id', invigilatorId)
+        .eq('exam_session_id', sessionData.id)
+        .eq('exam_room_id', roomId)
+        .eq('course_id', course?.id)
         .single();
-      if (roomError || !roomData) throw roomError || new Error('No room found');
-      // Upsert (insert or update) exam_allocation
-      const { data: allocation, error: allocError } = await supabase
-        .from('exam_allocation')
-        .upsert([
-          {
-            exam_session_id: sessionData.id,
-            exam_room_id: roomData.id,
-            student_id: studentId,
-            seat_number: answerSheetNumber,
-            has_checked_in: true,
-            check_in_time: new Date().toISOString(),
-            verified_by: invigilatorId,
-            fingerprint_matched: false,
-            was_manually_verified: true,
-            verified_student_number: studentId,
-            manual_verification_note: reason,
-          },
-        ], { onConflict: 'exam_session_id,exam_room_id,student_id' })
-        .select()
-        .single();
-      if (allocError || !allocation) throw allocError || new Error('Failed to upsert allocation');
+      if (allocError || !allocationData) throw allocError || new Error('No course room allocation found');
+      
       // Insert into attendance_log
       await logAttendance({
-        exam_allocation_id: allocation.id,
+        course_room_allocation_id: allocationData.id,
         verified_by: invigilatorId,
         method: 'manual',
         note: reason,
         student_number: studentId,
-        fingerprint_matched: false
+        fingerprint_matched: false,
+        answer_sheet_number: answerSheetNumber
       });
+      
       Toast.show({
         type: 'success',
         text1: 'Manual Override Recorded',
@@ -120,93 +118,71 @@ export default function ManualOverrideScreen() {
 
   if (!authChecked) {
     return (
-      <View className='flex justify-center'>
-        <Text className='text-center m-10 text-muted-foreground'>Checking authentication...</Text>
+      <View className={`flex-1 justify-center items-center ${isDark ? 'bg-black' : 'bg-white'}`}>
+        <Text className={`text-center m-10 ${isDark ? 'text-gray-400' : 'text-muted-foreground'}`}>Checking authentication...</Text>
       </View>
     )
   }
 
   if (!course) {
     return (
-      <View className='flex justify-center'>
-        <Text className='text-center m-10 text-red'>No course selected</Text>
+      <View className={`flex-1 justify-center items-center ${isDark ? 'bg-black' : 'bg-white'}`}>
+        <Text className={`text-center m-10 ${isDark ? 'text-red-400' : 'text-red-600'}`}>No course selected</Text>
       </View>
     )
   }
 
   return (
-    <>
-      <Stack.Screen options={{ headerShown: false, presentation: 'modal' }} />
-      <KeyboardAvoidingView
-        className='flex-1'
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-      >
-        <ScrollView className='flex-1 bg-white p-4'>
-          <View className='flex-row items-center justify-between mb-4'>
-            <Text className='text-lg font-bold'>Manual Override - {course.title}</Text>
-            <TouchableOpacity onPress={() => router.back()}>
-              <Text className='text-primary text-base'>Cancel</Text>
-            </TouchableOpacity>
+    <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
+      <View className={`px-4 py-2 ${isDark ? 'bg-white' : 'bg-primary'}`}>
+        <Text className={`font-bold text-xl ${isDark ? 'text-black' : 'text-white'}`}>Manual Override</Text>
+        <Text className={`text-sm opacity-80 ${isDark ? 'text-black' : 'text-white'}`}>Course: {course.title}</Text>
+      </View>
+
+      <ScrollView className="flex-1 p-4">
+        <View className="space-y-4">
+          <View>
+            <Text className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-black'}`}>Student Information</Text>
+            <TextInput
+              placeholder="Student ID"
+              value={studentId}
+              onChangeText={setStudentId}
+              className={`border rounded-lg px-4 py-3 mb-3 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-black'}`}
+            />
+            <TextInput
+              placeholder="Student Name"
+              value={studentName}
+              onChangeText={setStudentName}
+              className={`border rounded-lg px-4 py-3 mb-3 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-black'}`}
+            />
+            <TextInput
+              placeholder="Answer Sheet Number"
+              value={answerSheetNumber}
+              onChangeText={setAnswerSheetNumber}
+              className={`border rounded-lg px-4 py-3 mb-3 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-black'}`}
+            />
           </View>
 
-          {!isAuthenticated ? (
-            <View className='bg-orange-100 rounded-lg p-4 mb-6'>
-              <View className='flex-row items-center mb-2'>
-                <Shield size={20} color="#ea580c" />
-                <Text className='ml-2 text-orange-600 font-semibold'>Authentication Required</Text>
-              </View>
-              <TextInput
-                placeholder="Enter PIN (demo: 1234)"
-                value={pin}
-                onChangeText={setPin}
-                secureTextEntry
-                className='border border-orange-300 rounded px-3 py-2 mt-2 bg-white'
-              />
-              <TouchableOpacity
-                // onPress={handleAuthenticate}
-                className='bg-orange-600 rounded mt-4 py-3'
-              >
-                <Text className='text-center text-white font-medium'>Authenticate</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View className='gap-4'>
-              <TextInput
-                placeholder="Student ID"
-                value={studentId}
-                onChangeText={setStudentId}
-                className='border rounded px-3 py-2 bg-white'
-              />
-              <TextInput
-                placeholder="Student Name"
-                value={studentName}
-                onChangeText={setStudentName}
-                className='border rounded px-3 py-2 bg-white'
-              />
-              <TextInput
-                placeholder="Reason (e.g. scanner issue)"
-                value={reason}
-                onChangeText={setReason}
-                className='border rounded px-3 py-2 bg-white'
-              />
-              <TextInput
-                placeholder="Answer Sheet Number"
-                value={answerSheetNumber}
-                onChangeText={setAnswerSheetNumber}
-                className='border rounded px-3 py-2 bg-white'
-              />
+          <View>
+            <Text className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-black'}`}>Override Reason</Text>
+            <TextInput
+              placeholder="Enter reason for manual override..."
+              value={reason}
+              onChangeText={setReason}
+              multiline
+              numberOfLines={4}
+              className={`border rounded-lg px-4 py-3 mb-3 ${isDark ? 'border-gray-600 bg-gray-700 text-white' : 'border-gray-300 bg-white text-black'}`}
+            />
+          </View>
 
-              <TouchableOpacity
-                onPress={handleConfirm}
-                className='bg-orange-600 rounded mt-4 py-4'
-              >
-                <Text className='text-center text-white font-semibold'>Confirm Override</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </>
+          <TouchableOpacity
+            onPress={handleConfirm}
+            className="bg-blue-500 rounded-lg py-3 px-4"
+          >
+            <Text className="text-white text-center font-semibold text-lg">Confirm Manual Override</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }

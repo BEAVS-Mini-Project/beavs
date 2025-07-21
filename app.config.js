@@ -1,3 +1,4 @@
+import 'dotenv/config';
 export default {
   "expo": {
     "name": "beavs",
@@ -33,6 +34,10 @@ export default {
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
+      supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
     }
   }
 }

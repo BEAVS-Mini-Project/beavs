@@ -8,7 +8,7 @@ import Toast from 'react-native-toast-message';
 export default function ReportsScreen() {
   const [examSessions, setExamSessions] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
-  const [examAllocations, setExamAllocations] = useState<any[]>([]);
+  const [courseRoomAllocations, setCourseRoomAllocations] = useState<any[]>([]);
   const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +28,7 @@ export default function ReportsScreen() {
       const [sessionsRes, studentsRes, allocationsRes, logsRes, deptsRes] = await Promise.all([
         supabase.from('exam_session').select('*, course:course_id(*, program:program_id(*, department:department_id(*)))'),
         supabase.from('student').select('*'),
-        supabase.from('exam_allocation').select('*'),
+        supabase.from('course_room_allocation').select('*'),
         supabase.from('attendance_log').select('*'),
         supabase.from('department').select('id, name'),
       ]);
@@ -39,7 +39,7 @@ export default function ReportsScreen() {
       if (deptsRes.error) throw deptsRes.error;
       setExamSessions(sessionsRes.data || []);
       setStudents(studentsRes.data || []);
-      setExamAllocations(allocationsRes.data || []);
+      setCourseRoomAllocations(allocationsRes.data || []);
       setAttendanceLogs(logsRes.data || []);
       setDepartments(deptsRes.data || []);
     } catch (err: any) {
@@ -80,114 +80,125 @@ export default function ReportsScreen() {
   // Analytics
   const totalStudents = students.length;
   const totalSessions = examSessions.length;
-  const totalAllocations = examAllocations.length;
-  const attendanceRate = totalStudents > 0 ? Math.round((totalAllocations / totalStudents) * 100) : 0;
+  const totalAllocations = courseRoomAllocations.length;
+  const totalStudentCapacity = courseRoomAllocations.reduce((sum: number, a: any) => sum + a.student_count, 0);
+  const attendanceRate = totalStudentCapacity > 0 ? Math.round((totalStudents / totalStudentCapacity) * 100) : 0;
   const manualCount = attendanceLogs.filter((log: any) => log.method === 'manual').length;
   const biometricCount = attendanceLogs.filter((log: any) => log.method === 'biometric').length;
 
   // Department breakdown
   const departmentStats = departments.map((dept: any) => {
     const deptCourses = examSessions.filter((s: any) => s.course?.program?.department?.id === dept.id);
-    const deptAllocations = examAllocations.filter((a: any) => {
+    const deptAllocations = courseRoomAllocations.filter((a: any) => {
       const session = examSessions.find((s: any) => s.id === a.exam_session_id);
       return session && session.course?.program?.department?.id === dept.id;
     });
+    const deptStudentCapacity = deptAllocations.reduce((sum: number, a: any) => sum + a.student_count, 0);
     return {
       name: dept.name,
       sessions: deptCourses.length,
       allocations: deptAllocations.length,
+      studentCapacity: deptStudentCapacity,
     };
   });
 
   return (
     <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
-
-      <ScrollView className="flex-1 p-4">
-        <View className="flex-row justify-between mb-4">
-          <StatsCard 
-            label="Total Students" 
-            count={totalStudents} 
-            icon={<Users size={24} color={isDark ? 'white' : '#3B82F6'} />} 
-            color="#3B82F6"
-            isDark={isDark}
-          />
-          <StatsCard 
-            label="Today's Sessions" 
-            count={totalSessions} 
-            icon={<Calendar size={24} color={isDark ? 'white' : '#10B981'} />} 
-            color="#10B981"
-            isDark={isDark}
-          />
+      <ScrollView className="p-4">
+        {/* Header */}
+        <View className="flex-row items-center justify-between mb-6">
+          <View>
+            <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-black'}`}>Reports & Analytics</Text>
+            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Comprehensive exam management insights</Text>
+          </View>
+          <TouchableOpacity onPress={handleExportReport} className="bg-blue-500 rounded-lg p-3">
+            <Download size={20} color="white" />
+          </TouchableOpacity>
         </View>
 
-        <View className="flex-row justify-between mb-4">
-          <StatsCard 
-            label="Exam Allocations" 
-            count={totalAllocations} 
-            icon={<FileText size={24} color={isDark ? 'white' : '#8B5CF6'} />} 
-            color="#8B5CF6"
-            isDark={isDark}
-          />
-          <StatsCard 
-            label="Attendance Rate" 
-            count={`${attendanceRate}%`} 
-            icon={<TrendingUp size={24} color={isDark ? 'white' : '#F59E0B'} />} 
-            color="#F59E0B"
-            isDark={isDark}
-          />
-        </View>
-
-        <View className="flex-row justify-between mb-4">
-          <StatsCard 
-            label="Manual Overrides" 
-            count={manualCount} 
-            icon={<FileText size={24} color={isDark ? 'white' : '#F59E0B'} />} 
-            color="#F59E0B"
-            isDark={isDark}
-          />
-          <StatsCard 
-            label="Biometric Scans" 
-            count={biometricCount} 
-            icon={<FileText size={24} color={isDark ? 'white' : '#3B82F6'} />} 
-            color="#3B82F6"
-            isDark={isDark}
-          />
-        </View>
-
-        <View className="mb-4">
-          <Text className={`text-lg font-semibold mb-3 ${isDark ? 'text-white' : 'text-black'}`}>Department Breakdown</Text>
-          {departmentStats.length === 0 ? (
-            <View className={`p-4 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
-              <Text className={`text-center ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>No department data</Text>
+        {/* Analytics Cards */}
+        <View className="grid grid-cols-2 gap-4 mb-6">
+          <View className={`rounded-lg p-4 shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}> 
+            <View className="flex-row items-center justify-between">
+              <View>
+                <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-black'}`}>{totalStudents}</Text>
+                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Students</Text>
+              </View>
+              <Users size={24} color={isDark ? '#60A5FA' : '#3B82F6'} />
             </View>
-          ) : (
-            <View className="space-y-2">
-              {departmentStats.map((dept) => (
-                <View key={dept.name} className={`p-3 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <Text className={`font-semibold ${isDark ? 'text-white' : 'text-black'}`}>{dept.name}</Text>
-                  <Text className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Sessions: {dept.sessions} | Allocations: {dept.allocations}</Text>
+          </View>
+
+          <View className={`rounded-lg p-4 shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}> 
+            <View className="flex-row items-center justify-between">
+              <View>
+                <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-black'}`}>{totalSessions}</Text>
+                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Exam Sessions</Text>
+              </View>
+              <FileText size={24} color={isDark ? '#60A5FA' : '#3B82F6'} />
+            </View>
+          </View>
+
+          <View className={`rounded-lg p-4 shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}> 
+            <View className="flex-row items-center justify-between">
+              <View>
+                <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-black'}`}>{attendanceRate}%</Text>
+                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Attendance Rate</Text>
+              </View>
+              <TrendingUp size={24} color={isDark ? '#60A5FA' : '#3B82F6'} />
+            </View>
+          </View>
+
+          <View className={`rounded-lg p-4 shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}> 
+            <View className="flex-row items-center justify-between">
+              <View>
+                <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-black'}`}>{totalAllocations}</Text>
+                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Room Allocations</Text>
+              </View>
+              <BarChart3 size={24} color={isDark ? '#60A5FA' : '#3B82F6'} />
+            </View>
+          </View>
+        </View>
+
+        {/* Attendance Method Breakdown */}
+        <View className={`rounded-lg p-4 mb-6 shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}> 
+          <Text className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-black'}`}>Attendance Method Breakdown</Text>
+          <View className="space-y-3">
+            <View className="flex-row justify-between items-center">
+              <View className="flex-row items-center">
+                <View className="w-3 h-3 bg-green-500 rounded-full mr-2" />
+                <Text className={isDark ? 'text-white' : 'text-black'}>Biometric</Text>
+              </View>
+              <Text className={`font-semibold ${isDark ? 'text-white' : 'text-black'}`}>{biometricCount}</Text>
+            </View>
+            <View className="flex-row justify-between items-center">
+              <View className="flex-row items-center">
+                <View className="w-3 h-3 bg-orange-500 rounded-full mr-2" />
+                <Text className={isDark ? 'text-white' : 'text-black'}>Manual Override</Text>
+              </View>
+              <Text className={`font-semibold ${isDark ? 'text-white' : 'text-black'}`}>{manualCount}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Department Statistics */}
+        <View className={`rounded-lg p-4 shadow-sm ${isDark ? 'bg-gray-800' : 'bg-white'}`}> 
+          <Text className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-black'}`}>Department Statistics</Text>
+          <ScrollView className="max-h-64">
+            {departmentStats.map((dept, index) => (
+              <View key={index} className="border-b py-3 border-gray-200 dark:border-gray-700">
+                <View className="flex-row justify-between items-center">
+                  <Text className={`font-medium ${isDark ? 'text-white' : 'text-black'}`}>{dept.name}</Text>
+                  <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{dept.sessions} sessions</Text>
                 </View>
-              ))}
-            </View>
-          )}
+                <View className="flex-row justify-between mt-1">
+                  <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{dept.allocations} allocations</Text>
+                  <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{dept.studentCapacity} students</Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
         </View>
-
-        <TouchableOpacity
-          onPress={handleExportReport}
-          className={`flex-row items-center justify-center p-3 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
-        >
-          <Download size={20} color={isDark ? 'white' : '#3B82F6'} />
-          <Text className={`ml-2 font-semibold ${isDark ? 'text-white' : 'text-blue-600'}`}>Export Report</Text>
-        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
-}
-
-const StatsCard = ({ label, count, icon, color, isDark }: any) => (
-  <View className={`rounded-lg p-4 w-[48%] items-center shadow ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
-    {icon}
-    <Text className={`text-2xl font-bold ${color} ${isDark ? 'text-white' : ''}`}>{count}</Text>
-    <Text className={`text-sm text-gray-500 ${isDark ? 'text-white' : ''}`}>{label}</Text>
-  </View>
-); 
+} 

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, useColorScheme,ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, useColorScheme, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Book, Users, Clock, ArrowRight,BarChart3 } from 'lucide-react-native';
+import { Book, Users, Clock, ArrowRight, BarChart3 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useSelectedCourseStore } from '@/contexts/SelectedCourseContext';
 import { fetchInvigilatorCourses } from '@/utils/supabase';
@@ -49,47 +49,52 @@ export default function InvigilatorIndex() {
           <ActivityIndicator size="large" color="#3B82F6" />
           <Text className={`text-lg ${isDark ? 'text-white' : 'text-black'}`}>Loading courses...</Text>
         </View>
-       
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
-      <View className={`${isDark ? 'bg-white' : 'bg-primary'} px-4 py-2 flex justify-between flex-row`}>
+      <View className={`px-4 py-2 flex justify-between flex-row ${isDark ? 'bg-white' : 'bg-primary'}`}>
         <View>
-          <Text className={`${isDark ? 'text-black' : 'text-white'} font-bold text-xl`}>Select Course</Text>
-          <Text className={`${isDark ? 'text-black' : 'text-white'} text-sm opacity-80`}>Choose a course to invigilate</Text>
+          <Text className={`font-bold text-xl ${isDark ? 'text-black' : 'text-white'}`}>Select Course</Text>
+          <Text className={`text-sm opacity-80 ${isDark ? 'text-black' : 'text-white'}`}>Choose a course to invigilate</Text>
         </View>
-        <TouchableOpacity onPress={()=>router.push('/invigilator/dashboard')}>
-          <BarChart3 size={30} className='mt-5 color-muted-foreground' color={'#6b7280'} />
+        <TouchableOpacity onPress={() => router.push('/invigilator/dashboard')}>
+          <BarChart3 size={30} color={isDark ? '#111827' : '#6b7280'} />
         </TouchableOpacity>
       </View>
 
-        {/* Course List */}
-        <ScrollView className="p-4 space-y-4 ">
-          {courses.map((item) => (
-            <TouchableOpacity
-              key={item.course.id + '-' + item.hallName}
-              onPress={() => handleCourseSelect(item)}
-              className="rounded-lg p-4 text-black dark:text-white m-2 border border-gray-300 dark:border-gray-500"
-            >
-              <Text className="text-lg font-bold text-primary mb-1">{item.course.name}</Text>
-              <Text className="text-sm text-muted-foreground mb-2">
-                Course Code: {item.course.code}
-              </Text>
-              <Text className="text-sm text-muted-foreground mb-2">
-                Hall: {item.hallName}
-              </Text>
-              <View className="space-y-1">
-                <View className="flex-row items-center ">
-                  <Users size={16} className="mr-2 color-muted-foreground" />
-                  <Text className='text-sm text-muted-foreground'>{' '}Expected: {item.course.expectedCount || 0} students</Text>
-                </View>
+      {/* Course List */}
+      <ScrollView className="p-4 space-y-4 ">
+        {courses && courses.length > 0 ? courses.map((item) => (
+          <TouchableOpacity
+            key={item.course.id + '-' + item.hallName}
+            onPress={() => handleCourseSelect(item)}
+            className={`rounded-lg p-4 m-2 border ${isDark ? 'border-gray-500 bg-gray-900' : 'border-gray-300 bg-white'}`}
+          >
+            <Text className={`text-lg font-bold mb-1 ${isDark ? 'text-white' : 'text-primary'}`}>{item.course.name}</Text>
+            <Text className={`text-sm mb-2 ${isDark ? 'text-gray-400' : 'text-muted-foreground'}`}>Course Code: {item.course.code}</Text>
+            <Text className={`text-sm mb-2 ${isDark ? 'text-gray-400' : 'text-muted-foreground'}`}>Hall: {item.hallName}</Text>
+            <View className="space-y-1">
+              <View className="flex-row items-center ">
+                <Users size={16} color={isDark ? '#fff' : '#6b7280'} />
+                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-muted-foreground'}`}>{' '}Expected: {item.course.expectedCount || 0} students</Text>
               </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+            </View>
+          </TouchableOpacity>
+        )) : (
+          <View className="flex justify-center align-center flex-col space-y-1.5 p-6">
+            <View className="p-8 text-center pt-0">
+              <Clock color={isDark ? '#fff' : '#111827'} size={48} />
+              <Text className={`text-lg font-medium mb-2 ${isDark ? 'text-primary-foreground' : 'text-muted-foreground'}`}>No Exams Today</Text>
+              <Text className={isDark ? 'text-gray-400' : 'text-muted-foreground'}>
+                There are no hall sessions assigned to you for today.
+              </Text>
+            </View>
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }

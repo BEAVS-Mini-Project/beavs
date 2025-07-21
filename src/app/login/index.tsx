@@ -13,7 +13,7 @@ export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [userType, setUserType] = useState<'admin' | 'invigilator'>('admin');
+  const [userType, setUserType] = useState<'admin' | 'invigilator'>('invigilator');
   // const { colorMode, toggleTheme } = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
 

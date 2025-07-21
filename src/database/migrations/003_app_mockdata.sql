@@ -31,12 +31,22 @@ INSERT INTO course (id, name, code, program_id) VALUES
 ('880e8400-e29b-41d4-a716-446655440004', 'Software Engineering Principles', 'SE401', '550e8400-e29b-41d4-a716-446655440003'),
 ('880e8400-e29b-41d4-a716-446655440005', 'Operating Systems', 'CS302', '550e8400-e29b-41d4-a716-446655440001');
 
--- Insert Exam Rooms
-INSERT INTO exam_room (id, name, capacity, invigilator_id) VALUES
-('990e8400-e29b-41d4-a716-446655440001', 'Room A101', 50, '8bc74f72-3bc7-4d0e-a17a-f840c2bda1b0'),
-('990e8400-e29b-41d4-a716-446655440002', 'Room B201', 40, '50ced161-80ea-403d-acfa-f1be703d1398'),
-('990e8400-e29b-41d4-a716-446655440003', 'Room C301', 35, '1535c6b1-f004-471e-9759-2e2d01d6683f'),
-('990e8400-e29b-41d4-a716-446655440004', 'Room D102', 45, '8bc74f72-3bc7-4d0e-a17a-f840c2bda1b0');
+
+
+
+-- Insert Colleges (without code column as it doesn't exist in the schema)
+INSERT INTO college (id, name) VALUES
+('cc0e8400-e29b-41d4-a716-446655440001', 'College of Engineering'),
+('cc0e8400-e29b-41d4-a716-446655440002', 'College of Science')
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert Exam Rooms (without invigilator_id, with college_id)
+INSERT INTO exam_room (id, name, capacity, college_id) VALUES
+('990e8400-e29b-41d4-a716-446655440001', 'Room A101', 50, 'cc0e8400-e29b-41d4-a716-446655440001'),
+('990e8400-e29b-41d4-a716-446655440002', 'Room B201', 40, 'cc0e8400-e29b-41d4-a716-446655440001'),
+('990e8400-e29b-41d4-a716-446655440003', 'Room C301', 35, 'cc0e8400-e29b-41d4-a716-446655440002'),
+('990e8400-e29b-41d4-a716-446655440004', 'Room D102', 45, 'cc0e8400-e29b-41d4-a716-446655440002')
+ON CONFLICT (id) DO NOTHING;
 
 -- Insert Exam Sessions (today's date and some future dates)
 INSERT INTO exam_session (id, course_id, exam_date, start_time, end_time, semester, academic_year, created_by) VALUES
@@ -46,26 +56,35 @@ INSERT INTO exam_session (id, course_id, exam_date, start_time, end_time, semest
 ('aa0e8400-e29b-41d4-a716-446655440004', '880e8400-e29b-41d4-a716-446655440004', CURRENT_DATE + INTERVAL '2 days', '08:00:00', '11:00:00', 'First', '2024/2025', '8bc74f72-3bc7-4d0e-a17a-f840c2bda1b0'),
 ('aa0e8400-e29b-41d4-a716-446655440005', '880e8400-e29b-41d4-a716-446655440005', CURRENT_DATE, '15:30:00', '18:30:00', 'First', '2024/2025', '50ced161-80ea-403d-acfa-f1be703d1398');
 
--- Insert Exam Allocations
-INSERT INTO exam_allocation (id, exam_session_id, exam_room_id, student_id, seat_number, has_checked_in, check_in_time, verified_by, fingerprint_matched) VALUES
--- Today's Data Structures exam (Room A101)
-('bb0e8400-e29b-41d4-a716-446655440001', 'aa0e8400-e29b-41d4-a716-446655440001', '990e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440001', 'A01', true, CURRENT_TIMESTAMP - INTERVAL '2 hours', '8bc74f72-3bc7-4d0e-a17a-f840c2bda1b0', true),
-('bb0e8400-e29b-41d4-a716-446655440002', 'aa0e8400-e29b-41d4-a716-446655440001', '990e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440002', 'A02', true, CURRENT_TIMESTAMP - INTERVAL '2 hours', '8bc74f72-3bc7-4d0e-a17a-f840c2bda1b0', false),
-('bb0e8400-e29b-41d4-a716-446655440003', 'aa0e8400-e29b-41d4-a716-446655440001', '990e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440003', 'A03', false, NULL, NULL, false),
-('bb0e8400-e29b-41d4-a716-446655440004', 'aa0e8400-e29b-41d4-a716-446655440001', '990e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440007', 'A04', false, NULL, NULL, false),
 
--- Today's Database Systems exam (Room B201)
-('bb0e8400-e29b-41d4-a716-446655440005', 'aa0e8400-e29b-41d4-a716-446655440002', '990e8400-e29b-41d4-a716-446655440002', '770e8400-e29b-41d4-a716-446655440001', 'B01', false, NULL, NULL, false),
-('bb0e8400-e29b-41d4-a716-446655440006', 'aa0e8400-e29b-41d4-a716-446655440002', '990e8400-e29b-41d4-a716-446655440002', '770e8400-e29b-41d4-a716-446655440002', 'B02', false, NULL, NULL, false),
-('bb0e8400-e29b-41d4-a716-446655440007', 'aa0e8400-e29b-41d4-a716-446655440002', '990e8400-e29b-41d4-a716-446655440002', '770e8400-e29b-41d4-a716-446655440008', 'B03', false, NULL, NULL, false),
 
--- Today's Operating Systems exam (Room D102)
-('bb0e8400-e29b-41d4-a716-446655440008', 'aa0e8400-e29b-41d4-a716-446655440005', '990e8400-e29b-41d4-a716-446655440004', '770e8400-e29b-41d4-a716-446655440003', 'D01', false, NULL, NULL, false),
-('bb0e8400-e29b-41d4-a716-446655440009', 'aa0e8400-e29b-41d4-a716-446655440005', '990e8400-e29b-41d4-a716-446655440004', '770e8400-e29b-41d4-a716-446655440007', 'D02', false, NULL, NULL, false),
+-- Insert Course Room Allocations
+INSERT INTO course_room_allocation (id, exam_session_id, exam_room_id, course_id, index_start, index_end, student_count) VALUES
+('ee0e8400-e29b-41d4-a716-446655440001', 'aa0e8400-e29b-41d4-a716-446655440001', '990e8400-e29b-41d4-a716-446655440001', '880e8400-e29b-41d4-a716-446655440001', 1, 50, 4),
+('ee0e8400-e29b-41d4-a716-446655440002', 'aa0e8400-e29b-41d4-a716-446655440002', '990e8400-e29b-41d4-a716-446655440002', '880e8400-e29b-41d4-a716-446655440002', 1, 40, 3),
+('ee0e8400-e29b-41d4-a716-446655440003', 'aa0e8400-e29b-41d4-a716-446655440003', '990e8400-e29b-41d4-a716-446655440003', '880e8400-e29b-41d4-a716-446655440003', 1, 35, 2),
+('ee0e8400-e29b-41d4-a716-446655440004', 'aa0e8400-e29b-41d4-a716-446655440004', '990e8400-e29b-41d4-a716-446655440001', '880e8400-e29b-41d4-a716-446655440004', 1, 50, 1),
+('ee0e8400-e29b-41d4-a716-446655440005', 'aa0e8400-e29b-41d4-a716-446655440005', '990e8400-e29b-41d4-a716-446655440004', '880e8400-e29b-41d4-a716-446655440005', 1, 45, 2)
+ON CONFLICT (id) DO NOTHING;
 
--- Future exams (Network Administration)
-('bb0e8400-e29b-41d4-a716-446655440010', 'aa0e8400-e29b-41d4-a716-446655440003', '990e8400-e29b-41d4-a716-446655440003', '770e8400-e29b-41d4-a716-446655440004', 'C01', false, NULL, NULL, false),
-('bb0e8400-e29b-41d4-a716-446655440011', 'aa0e8400-e29b-41d4-a716-446655440003', '990e8400-e29b-41d4-a716-446655440003', '770e8400-e29b-41d4-a716-446655440005', 'C02', false, NULL, NULL, false),
 
--- Future exams (Software Engineering)
-('bb0e8400-e29b-41d4-a716-446655440012', 'aa0e8400-e29b-41d4-a716-446655440004', '990e8400-e29b-41d4-a716-446655440001', '770e8400-e29b-41d4-a716-446655440006', 'A10', false, NULL, NULL, false);
+
+-- Insert Invigilation Assignments
+INSERT INTO invigilation_assignment (id, lecturer_id, exam_session_id, exam_room_id, assigned_by) VALUES
+('dd0e8400-e29b-41d4-a716-446655440001', '8bc74f72-3bc7-4d0e-a17a-f840c2bda1b0', 'aa0e8400-e29b-41d4-a716-446655440001', '990e8400-e29b-41d4-a716-446655440001', '8bc74f72-3bc7-4d0e-a17a-f840c2bda1b0'),
+('dd0e8400-e29b-41d4-a716-446655440002', '50ced161-80ea-403d-acfa-f1be703d1398', 'aa0e8400-e29b-41d4-a716-446655440002', '990e8400-e29b-41d4-a716-446655440002', '50ced161-80ea-403d-acfa-f1be703d1398'),
+('dd0e8400-e29b-41d4-a716-446655440003', '1535c6b1-f004-471e-9759-2e2d01d6683f', 'aa0e8400-e29b-41d4-a716-446655440003', '990e8400-e29b-41d4-a716-446655440003', '1535c6b1-f004-471e-9759-2e2d01d6683f'),
+('dd0e8400-e29b-41d4-a716-446655440004', '8bc74f72-3bc7-4d0e-a17a-f840c2bda1b0', 'aa0e8400-e29b-41d4-a716-446655440004', '990e8400-e29b-41d4-a716-446655440001', '8bc74f72-3bc7-4d0e-a17a-f840c2bda1b0'),
+('dd0e8400-e29b-41d4-a716-446655440005', '50ced161-80ea-403d-acfa-f1be703d1398', 'aa0e8400-e29b-41d4-a716-446655440005', '990e8400-e29b-41d4-a716-446655440004', '50ced161-80ea-403d-acfa-f1be703d1398')
+ON CONFLICT (id) DO NOTHING;
+
+-- Insert Attendance Logs (using the new course_room_allocation structure)
+INSERT INTO attendance_log (id, course_room_allocation_id, verified_by, method, note, student_number, fingerprint_matched, verified_at) VALUES
+-- Today's Data Structures exam attendance
+('ff0e8400-e29b-41d4-a716-446655440001', 'ee0e8400-e29b-41d4-a716-446655440001', '8bc74f72-3bc7-4d0e-a17a-f840c2bda1b0', 'biometric', 'Fingerprint verified', '2022020001', true, CURRENT_TIMESTAMP - INTERVAL '2 hours'),
+('ff0e8400-e29b-41d4-a716-446655440002', 'ee0e8400-e29b-41d4-a716-446655440001', '8bc74f72-3bc7-4d0e-a17a-f840c2bda1b0', 'manual', 'Manual override - fingerprint not working', '2022020002', false, CURRENT_TIMESTAMP - INTERVAL '2 hours'),
+
+-- Today's Database Systems exam attendance
+('ff0e8400-e29b-41d4-a716-446655440003', 'ee0e8400-e29b-41d4-a716-446655440002', '50ced161-80ea-403d-acfa-f1be703d1398', 'biometric', 'Fingerprint verified', '2022020001', true, CURRENT_TIMESTAMP - INTERVAL '1 hour'),
+('ff0e8400-e29b-41d4-a716-446655440004', 'ee0e8400-e29b-41d4-a716-446655440002', '50ced161-80ea-403d-acfa-f1be703d1398', 'biometric', 'Fingerprint verified', '2022020002', true, CURRENT_TIMESTAMP - INTERVAL '30 minutes')
+ON CONFLICT (id) DO NOTHING;

@@ -43,17 +43,8 @@ export default function AdminLayout() {
           ),
         }}
       />
-      {/* <Tabs.Screen
-        name="upload"
-        options={{
-          title: 'Upload',
-          tabBarIcon: ({ color }) => (
-            <FontAwesome name="upload" size={20} color={color} />
-          ),
-        }}
-      /> */}
       <Tabs.Screen
-        name="rooms"
+        name="room-management"
         options={{
           title: 'Room Management',
           tabBarLabel:'Rooms',
