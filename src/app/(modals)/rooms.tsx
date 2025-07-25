@@ -17,8 +17,12 @@ export default function RoomsScreen() {
   const isDark = colorScheme === 'dark';
 
   useEffect(() => {
-    loadRooms();
-    loadColleges();
+    // Load colleges first, then rooms
+    const loadAll = async () => {
+      await loadColleges();
+      await loadRooms();
+    };
+    loadAll();
   }, []);
 
   const loadColleges = async () => {
@@ -34,17 +38,14 @@ export default function RoomsScreen() {
         .from('exam_room')
         .select('id, name, capacity, college_id');
       if (roomError) throw roomError;
-      
       const { data: allocations, error: allocError } = await supabase
         .from('course_room_allocation')
         .select('exam_room_id, student_count');
       if (allocError) throw allocError;
-      
       let collegeMap: Record<string, string> = {};
       if (colleges && colleges.length > 0) {
         collegeMap = Object.fromEntries(colleges.map((c: any) => [c.id, c.name]));
       }
-      
       const roomsWithStats = roomData.map((room: any) => {
         const roomAllocations = allocations.filter((a: any) => a.exam_room_id === room.id);
         const totalAssigned = roomAllocations.reduce((sum: number, a: any) => sum + a.student_count, 0);

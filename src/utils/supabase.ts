@@ -70,7 +70,7 @@ export async function fetchInvigilatorCourses() {
       ),
       exam_room:exam_room_id(*)
     `)
-    .eq('lecturer_id', user.id)
+    .eq('profile_id', user.id)
     .eq('exam_session.exam_date', today);
   if (assignmentError) throw assignmentError;
   if (!assignments || assignments.length === 0) return [];
@@ -123,7 +123,7 @@ export async function fetchInvigilatorCourses() {
   return unique;
 }
 
-// Fetch all invigilation assignments (with session, room, and lecturer info)
+// Fetch all invigilation assignments (with session, room, and profile info)
 export async function fetchAllInvigilationAssignments() {
   const { data, error } = await supabase
     .from('invigilation_assignment')
@@ -131,7 +131,7 @@ export async function fetchAllInvigilationAssignments() {
       *,
       exam_session:exam_session_id(*, course:course_id(*)),
       exam_room:exam_room_id(*),
-      lecturer:lecturer_id(*)
+      profile:profile_id(*)
     `)
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -140,12 +140,12 @@ export async function fetchAllInvigilationAssignments() {
 
 // Create a new invigilation assignment
 export async function createInvigilationAssignment({
-  lecturer_id,
+  profile_id,
   exam_session_id,
   exam_room_id,
   assigned_by
 }: {
-  lecturer_id: string,
+  profile_id: string,
   exam_session_id: string,
   exam_room_id: string,
   assigned_by: string
@@ -153,7 +153,7 @@ export async function createInvigilationAssignment({
   const { data, error } = await supabase
     .from('invigilation_assignment')
     .insert([
-      { lecturer_id, exam_session_id, exam_room_id, assigned_by }
+      { profile_id, exam_session_id, exam_room_id, assigned_by }
     ])
     .select()
     .single();

@@ -72,7 +72,7 @@ export default function ManualOverrideScreen() {
         .select(`
           exam_room:exam_room_id(id)
         `)
-        .eq('lecturer_id', invigilatorId)
+        .eq('profile_id', invigilatorId)
         .eq('exam_session_id', sessionData.id)
         .single();
       if (assignmentError || !assignmentData) throw assignmentError || new Error('No invigilation assignment found');

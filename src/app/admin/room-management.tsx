@@ -70,7 +70,7 @@ function InvigilatorsTab() {
               <View key={a.id} className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4 shadow-sm">
                 <View className="flex-row justify-between mb-2">
                   <Text className="font-bold text-gray-800 dark:text-white">
-                    {a.lecturer?.full_name || 'Unknown Invigilator'}
+                    {a.profile?.full_name || 'Unknown Invigilator'}
                   </Text>
                   <Text className="text-gray-600 dark:text-gray-400">
                     {a.exam_room?.name || 'Unknown Room'}
