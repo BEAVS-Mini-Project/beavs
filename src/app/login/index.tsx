@@ -5,6 +5,7 @@ import {  User,Fingerprint,Settings, LogOut, RefreshCw, FileText, LucideFingerpr
 import Toast from 'react-native-toast-message';
 import { Card, Menu ,Divider} from 'react-native-paper';
 import { supabase } from '@/utils/supabase';
+import { handleError, handleSuccess, handleInfo, isAuthError, isNetworkError } from '@/utils/errorHandler';
 // import { styled } from 'nativewind';
 // import { useTheme } from '@/contexts/ThemeContext';
 
@@ -19,71 +20,66 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!username || !password) {
-      Toast.show({
-        type:'error',
-        text1:'Missing input',
-        text2: 'Please enter both username and password'
-      })
+      handleError('Please enter both username and password', 'Missing Input');
       return;
     }
 
     setIsLoading(true);
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: username,
         password: password,
       });
       
       if (error) {
-        Toast.show({
-          type:'error',
-          text1:'Invalid credentials',
-          text2: 'Please check and input the right credentials. Contact support for help'
-        })
-      } else {
-        const { data: { user } } = await supabase.auth.getUser();
-        const userId = user?.id;
-        
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', userId)
-          .single();
-        
-        const role = profile?.role;
-        
-        if (!profile || !role) {
-          Toast.show({
-            type: 'error',
-            text1: 'Profile not found',
-            text2: 'Your account is missing a profile or role. Contact admin.'
-          });
-          setIsLoading(false);
-          return;
-        }
-        
-        if (userType === role) {
-          Toast.show({
-            type: 'success',
-            text1: 'Login Successful',
-            text2: 'Welcome to BEAVS system'
-          });
-          router.replace(`/${role}`);
+        if (isAuthError(error)) {
+          handleError('Invalid email or password. Please check your credentials.', 'Authentication Failed');
+        } else if (isNetworkError(error)) {
+          handleError('Network connection issue. Please check your internet connection.', 'Connection Error');
         } else {
-          Toast.show({
-            type: 'error',
-            text1: `Invalid credentials for ${role}`,
-            text2: 'Please check and input the right credentials. Contact support for help'
-          });
+          handleError(error, 'Login Error');
         }
+        return;
+      }
+
+      if (!data.user) {
+        handleError('No user data received', 'Login Error');
+        return;
+      }
+
+      const userId = data.user.id;
+      
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+      
+      if (profileError) {
+        handleError(profileError, 'Profile Fetch Error');
+        return;
+      }
+      
+      const role = profile?.role;
+      
+      if (!profile || !role) {
+        handleError('Your account is missing a profile or role. Contact admin.', 'Profile Not Found');
+        return;
+      }
+      
+      if (userType === role) {
+        handleSuccess('Welcome to BEAVS system', 'Login Successful');
+        router.replace(`/${role}`);
+      } else {
+        handleError(`You selected ${userType} but your account is ${role}. Please select the correct user type.`, 'User Type Mismatch');
       }
     } catch (error) {
-      Toast.show({
-        type:'error',
-        text1:'An unexpected error occurred',
-        text2: 'Please try again later'
-      })
+      if (isNetworkError(error)) {
+        handleError('Network connection issue. Please check your internet connection.', 'Connection Error');
+      } else {
+        handleError(error, 'Unexpected Error');
+      }
     } finally {
       setIsLoading(false);
     }

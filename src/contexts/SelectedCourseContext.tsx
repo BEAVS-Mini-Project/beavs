@@ -7,6 +7,14 @@ export type Course = {
   studentRange?: string;
   expectedCount?: number;
   hall?: string;
+  program_id?: string;
+  allocation?: {
+    id: string;
+    indexStart: number;
+    indexEnd: number;
+    studentCount: number;
+  };
+  course?: any; // for compatibility with supabase result
 };
 
 type SelectedCourseState = {

@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, useColorScheme, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { UserCheck, Users, FileText, RefreshCw, LogOut, Wifi, WifiOff } from 'lucide-react-native';
+import { UserCheck, Users, FileText, RefreshCw, LogOut, Wifi, WifiOff, Calendar } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
 import { useSelectedCourseStore } from '@/contexts/SelectedCourseContext';
-import { supabase, fetchCourses, fetchTodayExamSessions } from '@/utils/supabase';
+import { supabase, fetchAllInvigilatorAssignments } from '@/utils/supabase';
+import { handleError, handleSuccess, isNetworkError, isDatabaseError, isAuthError } from '@/utils/errorHandler';
 
 export default function DashboardScreen() {
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [courses, setCourses] = useState<any[]>([]);
-  const [examSessions, setExamSessions] = useState<any[]>([]);
+  const [allAssignments, setAllAssignments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const selectedCourse = useSelectedCourseStore((state) => state.selectedCourse);
@@ -25,19 +25,16 @@ export default function DashboardScreen() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [coursesData, sessionsData] = await Promise.all([
-        fetchCourses(),
-        fetchTodayExamSessions()
-      ]);
-      setCourses(coursesData);
-      setExamSessions(sessionsData);
+      const assignmentsData = await fetchAllInvigilatorAssignments();
+      setAllAssignments(assignmentsData);
     } catch (error) {
-      console.error('Error loading data:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to load dashboard data'
-      });
+      const errorMessage = isNetworkError(error) 
+        ? 'Network connection issue. Please check your internet connection.'
+        : isDatabaseError(error)
+        ? 'Database error occurred. Please try again.'
+        : 'Failed to load dashboard data';
+      
+      handleError(error, 'Dashboard Data Load');
     } finally {
       setLoading(false);
     }
@@ -47,17 +44,9 @@ export default function DashboardScreen() {
     setIsSyncing(true);
     try {
       await loadData();
-      Toast.show({
-        type: 'success',
-        text1: 'Success',
-        text2: 'Data synced successfully'
-      });
+      handleSuccess('Data synced successfully');
     } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to sync data'
-      });
+      handleError(error, 'Data Sync');
     } finally {
       setIsSyncing(false);
     }
@@ -69,13 +58,21 @@ export default function DashboardScreen() {
       if (error) throw error;
       router.replace('/login');
     } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to logout'
-      });
+      if (isAuthError(error)) {
+        handleError('Authentication error during logout', 'Logout Error');
+      } else {
+        handleError(error, 'Logout Error');
+      }
     }
   };
+
+  const isToday = (dateString: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    return dateString === today;
+  };
+
+  const todayAssignments = allAssignments.filter(assignment => isToday(assignment.session.exam_date));
+  const futureAssignments = allAssignments.filter(assignment => !isToday(assignment.session.exam_date));
 
   const hallName = selectedCourse?.hall || 'Main Hall';
   const totalStudents = selectedCourse?.expectedCount || 0;
@@ -112,10 +109,24 @@ export default function DashboardScreen() {
       <ScrollView className="flex-1 px-4">
         <View className="flex-row justify-between flex-wrap gap-4">
           <StatsCard
-            label="Total Students"
-            count={totalStudents}
-            icon={<Users size={24} color={isDark ? '#fff' : '#3B82F6'} />}
+            label="Today's Sessions"
+            count={todayAssignments.length}
+            icon={<Calendar size={24} color={isDark ? '#fff' : '#3B82F6'} />}
             color={isDark ? 'text-white' : 'text-blue-600'}
+            isDark={isDark}
+          />
+          <StatsCard
+            label="Future Sessions"
+            count={futureAssignments.length}
+            icon={<Calendar size={24} color={isDark ? '#fff' : '#10B981'} />}
+            color={isDark ? 'text-white' : 'text-green-600'}
+            isDark={isDark}
+          />
+          <StatsCard
+            label="Total Assignments"
+            count={allAssignments.length}
+            icon={<Users size={24} color={isDark ? '#fff' : '#8B5CF6'} />}
+            color={isDark ? 'text-white' : 'text-purple-600'}
             isDark={isDark}
           />
           <StatsCard
@@ -137,13 +148,6 @@ export default function DashboardScreen() {
             count={absentStudents}
             icon={<FileText size={24} color={isDark ? '#fff' : '#EF4444'} />}
             color={isDark ? 'text-white' : 'text-red-600'}
-            isDark={isDark}
-          />
-          <StatsCard
-            label="Today's Sessions"
-            count={examSessions.length}
-            icon={<FileText size={24} color={isDark ? '#fff' : '#8B5CF6'} />}
-            color={isDark ? 'text-white' : 'text-purple-600'}
             isDark={isDark}
           />
         </View>

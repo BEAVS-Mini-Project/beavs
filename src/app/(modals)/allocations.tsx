@@ -112,7 +112,7 @@ function AllocationModal({ visible, mode, allocationData, onClose, onSave, loadi
     <View className="absolute inset-0 bg-black/50 justify-center items-center z-50">
       <View className={`rounded-2xl p-6 w-[90%] max-w-md shadow-lg ${isDark ? 'bg-gray-900' : 'bg-white'}`}> 
         <Text className={`text-2xl font-bold mb-5 text-center ${isDark ? 'text-white' : 'text-gray-900'}`}>{mode === 'add' ? 'Add Allocation' : 'Edit Allocation'}</Text>
-        <View className="space-y-4">
+        <View className="gap-4">
           <View>
             <Text className={`mb-2 font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>Exam Session</Text>
             <ScrollView className={`max-h-32 border rounded-lg ${isDark ? 'border-gray-700' : 'border-gray-300'}`}> 
@@ -149,7 +149,7 @@ function AllocationModal({ visible, mode, allocationData, onClose, onSave, loadi
               ))}
             </ScrollView>
           </View>
-          <View className="flex-row space-x-3">
+          <View className="flex-row gap-3">
             <View className="flex-1">
               <Text className={`mb-2 font-medium ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>Index Start</Text>
               <TextInput
@@ -182,7 +182,7 @@ function AllocationModal({ visible, mode, allocationData, onClose, onSave, loadi
             />
           </View>
         </View>
-        <View className="flex-row mt-7 space-x-3">
+        <View className="flex-row mt-7 gap-3">
           <TouchableOpacity 
             className={`flex-1 rounded-lg py-3 items-center ${isDark ? 'bg-gray-600' : 'bg-gray-400'}`}
             onPress={onClose} 
@@ -292,7 +292,7 @@ export default function AllocationsTab() {
             <Text className="text-white font-semibold">Add Allocation</Text>
           </TouchableOpacity>
         </View>
-        <View className="space-y-4 gap-2">
+        <View className=" gap-2">
           {allocations.length === 0 ? (
             <Text className={`text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>No allocations found.</Text>
           ) : (
@@ -310,7 +310,7 @@ export default function AllocationsTab() {
                   <Text className={`${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Student Count:</Text>
                   <Text className={`${isDark ? 'text-white' : 'text-gray-800'}`}>{a.student_count}</Text>
                 </View>
-                <View className="flex-row space-x-2 mt-3">
+                <View className="flex-row gap-2 mt-3">
                   <TouchableOpacity className="flex-1 bg-blue-500 rounded-lg py-2" onPress={() => openEditModal(a)}>
                     <Text className="text-white text-center font-medium">Edit</Text>
                   </TouchableOpacity>

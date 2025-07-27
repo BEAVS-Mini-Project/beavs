@@ -43,7 +43,7 @@ function RootLayoutNav() {
   const paperTheme = systemColorScheme === 'dark' ? MD3DarkTheme : MD3LightTheme;
 
   return (
-    <PaperProvider theme={paperTheme}>
+    // <PaperProvider theme={paperTheme}>
       <View style={{ flex: 1 }}>
         <Stack screenOptions={{ headerShown: false }}>
           {/* <Stack.Screen name="index" /> */}
@@ -53,7 +53,7 @@ function RootLayoutNav() {
         </Stack>
         <Toast config={toastConfig} visibilityTime={3000} position="top" />
       </View>
-    </PaperProvider>
+    // </PaperProvider>
   );
 }
 

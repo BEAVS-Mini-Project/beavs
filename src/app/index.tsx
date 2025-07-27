@@ -6,61 +6,64 @@ import { GraduationCap, Book, School } from 'lucide-react-native';
 import Toast from 'react-native-toast-message';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../utils/supabase';
+import { handleError, handleInfo, isAuthError } from '@/utils/errorHandler';
 
 const Index = () => {
   const Router = useRouter();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const redir= setTimeout(() => {
     const checkSessionAndRedirect = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        Toast.show({
-          type: 'info',
-          text1: 'Welcome',
-          text2: 'Redirecting to login',
-        });
-        Router.replace('/login');
-        return;
-      }
-      // Get user id
-      const userId = session.user.id;
-      console.log('User ID from session:', userId);
-      // Fetch role from profiles table
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-        console.log('Profile from query:', profile, 'Error:', error);
-      const userRole = profile?.role;
-      if (userRole === 'admin') {
-        Toast.show({
-          type: 'success',
-          text1: 'Welcome',
-          text2: 'Redirecting to Admin Dashboard',
-        });
-        Router.replace('/admin');
-      } else if (userRole === 'invigilator') {
-        Toast.show({
-          type: 'success',
-          text1: 'Welcome',
-          text2: 'Redirecting to Invigilator Dashboard',
-        });
-        Router.replace('/invigilator');
-      } else {
-        Toast.show({
-          type: 'error',
-          text1: 'Role not found',
-          text2: 'Contact admin for access',
-        });
-        Router.replace('/login');
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        
+        if (!session) {
+          handleInfo('Redirecting to login', 'Welcome');
+          Router.replace('/login');
+          return;
+        }
+
+        // Get user id
+        const userId = session.user.id;
+        
+        // Fetch role from profiles table
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .single();
+        
+        if (profileError) throw profileError;
+        
+        const userRole = profile?.role;
+        if (!userRole) {
+          handleError('No role assigned to user', 'Access Denied');
+          Router.replace('/login');
+          return;
+        }
+
+        if (userRole === 'admin') {
+          handleInfo('Redirecting to Admin Dashboard', 'Welcome');
+          Router.replace('/admin');
+        } else if (userRole === 'invigilator') {
+          handleInfo('Redirecting to Invigilator Dashboard', 'Welcome');
+          Router.replace('/invigilator');
+        } else {
+          handleError('Invalid user role', 'Access Denied');
+          Router.replace('/login');
+        }
+      } catch (error) {
+        if (isAuthError(error)) {
+          handleError(error, 'Authentication Error');
+          Router.replace('/login');
+        } else {
+          handleError(error, 'Session Check');
+        }
       }
     };
+
     checkSessionAndRedirect();
-    }, 2000);
-    return ()=>clearTimeout(redir);
   }, []);
 
   return (

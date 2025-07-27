@@ -124,7 +124,7 @@ export default function RoomsScreen() {
     <ScrollView className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}> 
       <View className="p-6">
         {/* Room Cards */}
-        <View className="space-y-4 gap-2">
+        <View className=" gap-2">
           {rooms.map((room) => (
             <View
               key={room.id}
@@ -137,7 +137,7 @@ export default function RoomsScreen() {
                 </View>
               </View>
 
-              <View className="space-y-2 gap-2">
+              <View className=" gap-2">
                 <View className="flex-row justify-between">
                   <Text className={` ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Capacity:</Text>
                   <Text className={`font-medium ${isDark ? 'text-white' : 'text-gray-800'}`}>{room.assigned}/{room.capacity}</Text>

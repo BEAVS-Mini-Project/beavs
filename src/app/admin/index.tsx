@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, useColorSc
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { router } from 'expo-router';
 import { supabase } from '@/utils/supabase';
+import { handleError, isNetworkError, isDatabaseError } from '@/utils/errorHandler';
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -25,33 +26,42 @@ export default function AdminDashboard() {
     try {
       setLoading(true);
       setError(null);
-      // Fetch stats
-      const [{ count: studentCount }, { count: roomCount }, { count: invigilatorCount }] = await Promise.all([
+      
+      // Fetch stats with better error handling
+      const [studentResult, roomResult, invigilatorResult] = await Promise.all([
         supabase.from('student').select('*', { count: 'exact', head: true }),
         supabase.from('exam_room').select('*', { count: 'exact', head: true }),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'invigilator'),
       ]);
+
+      // Check for errors in each query
+      if (studentResult.error) throw studentResult.error;
+      if (roomResult.error) throw roomResult.error;
+      if (invigilatorResult.error) throw invigilatorResult.error;
       
       // Attendance rate: percent of course_room_allocation with attendance logs
-      const { count: totalAllocations } = await supabase
+      const allocationResult = await supabase
         .from('course_room_allocation')
         .select('*', { count: 'exact', head: true });
       
-      const { count: attendanceLogs } = await supabase
+      const attendanceResult = await supabase
         .from('attendance_log')
         .select('*', { count: 'exact', head: true });
       
-      const attendanceRate = totalAllocations ? Math.round((attendanceLogs! / totalAllocations) * 100) : 0;
+      if (allocationResult.error) throw allocationResult.error;
+      if (attendanceResult.error) throw attendanceResult.error;
+      
+      const attendanceRate = allocationResult.count && attendanceResult.count ? Math.round((attendanceResult.count / allocationResult.count) * 100) : 0;
       
       setStats({
-        students: studentCount || 0,
-        rooms: roomCount || 0,
-        invigilators: invigilatorCount || 0,
+        students: studentResult.count || 0,
+        rooms: roomResult.count || 0,
+        invigilators: invigilatorResult.count || 0,
         attendanceRate,
       });
       
       // Fetch recent activity from attendance_log (last 5 entries)
-      const { data: activity } = await supabase
+      const { data: activity, error: activityError } = await supabase
         .from('attendance_log')
         .select(`
           *,
@@ -64,16 +74,26 @@ export default function AdminDashboard() {
         `)
         .order('verified_at', { ascending: false })
         .limit(5);
+      
+      if (activityError) throw activityError;
       setRecentActivity(activity || []);
     } catch (err: any) {
-      setError(err.message || 'Failed to load dashboard data');
+      const errorMessage = isNetworkError(err) 
+        ? 'Network connection issue. Please check your internet connection.'
+        : isDatabaseError(err)
+        ? 'Database error occurred. Please try again.'
+        : err.message || 'Failed to load dashboard data';
+      
+      setError(errorMessage);
+      handleError(err, 'Dashboard Data Load');
     } finally {
       setLoading(false);
     }
   };
 
   const quickActions = [
-    { title: 'Add Invigilator', icon: "users" as const, route: '/add-invigilator' as const },
+    { title: 'Add Student', icon: "user-plus" as const, route: '/admin/add-student' as const },
+    { title: 'Add Invigilator', icon: "users" as const, route: '/admin/add-invigilator' as const },
     { title: 'Manage Rooms', icon: 'building' as const, route: '/admin/room-management' as const },
     { title: 'View Reports', icon: 'bar-chart' as const, route: '/admin/reports' as const },
     { title: 'Settings', icon: 'cog' as const, route: '/admin/settings' as const },

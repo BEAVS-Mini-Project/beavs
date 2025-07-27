@@ -73,6 +73,36 @@ export default function AdminLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="add-student"
+        options={{
+          title: 'Add Student',
+          href: null, // Hide from tab bar
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.push('/admin')}
+              className="ml-4"
+            >
+              <FontAwesome name="arrow-left" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="add-invigilator"
+        options={{
+          title: 'Add Invigilator',
+          href: null, // Hide from tab bar
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.push('/admin')}
+              className="ml-4"
+            >
+              <FontAwesome name="arrow-left" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
     </Tabs>
   );
 } 

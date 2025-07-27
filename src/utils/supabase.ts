@@ -346,3 +346,102 @@ export async function fetchAllRooms() {
   if (error) throw error;
   return data;
 }        
+
+// Fetch all invigilation assignments for the current invigilator (current and future)
+export async function fetchAllInvigilatorAssignments() {
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!user) throw new Error('No user logged in');
+
+  // Get all invigilation assignments for this invigilator (current and future)
+  const { data: assignments, error: assignmentError } = await supabase
+    .from('invigilation_assignment')
+    .select(`
+      *,
+      exam_session:exam_session_id(
+        *,
+        course:course_id(*)
+      ),
+      exam_room:exam_room_id(*)
+    `)
+    .eq('profile_id', user.id)
+    .gte('exam_session.exam_date', new Date().toISOString().split('T')[0]) // Only current and future dates
+    .order('exam_session_id', { ascending: true }); // Order by session ID instead of nested fields
+  if (assignmentError) throw assignmentError;
+  if (!assignments || assignments.length === 0) return [];
+
+  // Sort the results in JavaScript after fetching
+  const sortedAssignments = assignments.sort((a, b) => {
+    const dateA = new Date(a.exam_session?.exam_date || '');
+    const dateB = new Date(b.exam_session?.exam_date || '');
+    
+    if (dateA.getTime() !== dateB.getTime()) {
+      return dateA.getTime() - dateB.getTime();
+    }
+    
+    // If dates are the same, sort by start time
+    const timeA = a.exam_session?.start_time || '';
+    const timeB = b.exam_session?.start_time || '';
+    return timeA.localeCompare(timeB);
+  });
+
+  // Transform the data to match the expected format
+  const result = sortedAssignments.map((assignment) => {
+    const session = assignment.exam_session;
+    const course = session?.course;
+    const room = assignment.exam_room;
+    
+    if (!course || !room) return null;
+    
+    return {
+      assignment_id: assignment.id,
+      course: {
+        ...course,
+        expectedCount: 0 // Will be populated from course_room_allocation if needed
+      },
+      hallName: room.name,
+      session: {
+        id: session.id,
+        exam_date: session.exam_date,
+        start_time: session.start_time,
+        end_time: session.end_time,
+        semester: session.semester,
+        academic_year: session.academic_year
+      },
+      room: {
+        id: room.id,
+        name: room.name,
+        capacity: room.capacity
+      }
+    };
+  }).filter(Boolean);
+
+  return result;
+}        
+
+// Fetch students for a given course_room_allocation (by index range)
+export async function fetchStudentsForAllocation({
+  index_start,
+  index_end,
+  program_id
+}: {
+  index_start: number,
+  index_end: number,
+  program_id: string
+}) {
+  // Fetch all students in the program
+  const { data: students, error } = await supabase
+    .from('student')
+    .select('*')
+    .eq('program_id', program_id);
+  if (error) throw error;
+  // Filter students whose index_number (parsed as number) is within the range
+  // Assumes index_number is in the format 'CS/22/001' and the last part is the number
+  const filtered = (students || []).filter((student) => {
+    const match = student.index_number.match(/(\d+)$/);
+    if (!match) return false;
+    const indexNum = parseInt(match[1], 10);
+    return indexNum >= index_start && indexNum <= index_end;
+  });
+  return filtered;
+}        
