@@ -65,7 +65,7 @@ export default function AttendanceScreen() {
       </Text>
       {/* Fingerprint Section */}
       <View className="items-center mb-8">
-        <View className={`rounded-full p-8 mb-3 border-2 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-gray-100 border-gray-300'}`}> 
+        <View className={`rounded-full p-8 mb-3 border-2 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-gray-100 border-gray-300'}`}>
           <Fingerprint size={64} color={scanning ? '#2563eb' : (isDark ? '#fff' : '#6b7280')} />
         </View>
         <TouchableOpacity

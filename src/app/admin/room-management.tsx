@@ -4,7 +4,7 @@ import RoomsScreen from '../(modals)/rooms';
 import SessionsTab from '../(modals)/sessions';
 import UploadScreen from '../(modals)/upload';
 import AllocationsTab from '../(modals)/allocations';
-import { fetchAllCourseRoomAllocations, deleteCourseRoomAllocation, fetchAllInvigilationAssignments, deleteInvigilationAssignment, fetchAllExamSessions, deleteExamSession, createInvigilationAssignment } from '@/utils/supabase';
+import { fetchAllCourseRoomAllocations, deleteCourseRoomAllocation, fetchComprehensiveInvigilationAssignments, deleteInvigilationAssignment, fetchAllExamSessions, deleteExamSession, createInvigilationAssignment, fetchInvigilatorAssignedSessionIds } from '@/utils/supabase';
 import { supabase } from '@/utils/supabase';
 import { handleError, handleSuccess, isNetworkError, isDatabaseError, isAuthError } from '@/utils/errorHandler';
 
@@ -14,12 +14,14 @@ function InvigilatorsTab() {
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [invigilators, setInvigilators] = useState<any[]>([]);
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [allSessions, setAllSessions] = useState<any[]>([]); // All sessions
+  const [availableSessions, setAvailableSessions] = useState<any[]>([]); // Filtered sessions
   const [rooms, setRooms] = useState<any[]>([]);
   const [selectedInvigilator, setSelectedInvigilator] = useState<string>('');
   const [selectedSession, setSelectedSession] = useState<string>('');
   const [selectedRoom, setSelectedRoom] = useState<string>('');
   const [assigning, setAssigning] = useState(false);
+  const [loadingSessions, setLoadingSessions] = useState(false);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
@@ -28,11 +30,45 @@ function InvigilatorsTab() {
     loadDropdowns();
   }, []);
 
+  // Filter sessions when invigilator is selected
+  useEffect(() => {
+    const filterSessionsForInvigilator = async () => {
+      if (!selectedInvigilator) {
+        setAvailableSessions(allSessions);
+        setSelectedSession('');
+        setSelectedRoom('');
+        return;
+      }
+
+      setLoadingSessions(true);
+      try {
+        // Fetch session IDs where this invigilator is already assigned
+        const assignedSessionIds = await fetchInvigilatorAssignedSessionIds(selectedInvigilator);
+        
+        // Filter out sessions where invigilator is already assigned
+        const availableSessions = allSessions.filter(session => 
+          !assignedSessionIds.includes(session.id)
+        );
+        
+        setAvailableSessions(availableSessions);
+        setSelectedSession('');
+        setSelectedRoom('');
+      } catch (error) {
+        handleError(error, 'Session Filtering');
+        setAvailableSessions([]);
+      } finally {
+        setLoadingSessions(false);
+      }
+    };
+
+    filterSessionsForInvigilator();
+  }, [selectedInvigilator, allSessions]);
+
   const loadAssignments = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchAllInvigilationAssignments();
+      const data = await fetchComprehensiveInvigilationAssignments();
       setAssignments(data || []);
     } catch (err: any) {
       const errorMessage = isNetworkError(err) 
@@ -52,9 +88,10 @@ function InvigilatorsTab() {
     // Fetch invigilators
     const { data: invigilatorsData } = await supabase.from('profiles').select('id, full_name').eq('role', 'invigilator');
     setInvigilators(invigilatorsData || []);
-    // Fetch sessions
+    // Fetch all sessions
     const { data: sessionsData } = await supabase.from('exam_session').select('id, exam_date, start_time, end_time').order('exam_date');
-    setSessions(sessionsData || []);
+    setAllSessions(sessionsData || []);
+    setAvailableSessions(sessionsData || []); // Initially show all sessions
     // Fetch rooms
     const { data: roomsData } = await supabase.from('exam_room').select('id, name');
     setRooms(roomsData || []);
@@ -72,6 +109,8 @@ function InvigilatorsTab() {
       if (userError) throw userError;
       if (!user) throw new Error('No user logged in');
 
+
+
       await createInvigilationAssignment({
         profile_id: selectedInvigilator,
         exam_session_id: selectedSession,
@@ -88,7 +127,9 @@ function InvigilatorsTab() {
       if (isAuthError(err)) {
         handleError('Authentication error. Please log in again.', 'Assignment Error');
       } else if (isDatabaseError(err)) {
-        handleError('Database error. Please check your input and try again.', 'Assignment Error');
+        // Show more specific database error message
+        const errorMessage = err.message || err.details || 'Database error occurred';
+        handleError(`Database error: ${errorMessage}`, 'Assignment Error');
       } else {
         handleError(err, 'Assignment Creation');
       }
@@ -131,13 +172,24 @@ function InvigilatorsTab() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+            {selectedInvigilator && (
+              <Text className={`text-xs mb-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                Showing only sessions where this invigilator is not already assigned
+              </Text>
+            )}
             <Text className={`mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>Session</Text>
             <ScrollView horizontal className="mb-4">
-              {sessions.map((sess) => (
-                <TouchableOpacity key={sess.id} onPress={() => setSelectedSession(sess.id)} className={`mr-2 px-3 py-1 rounded-full ${selectedSession === sess.id ? (isDark ? 'bg-blue-600' : 'bg-blue-500') : (isDark ? 'bg-gray-600' : 'bg-gray-200')}`}> 
-                  <Text className={selectedSession === sess.id ? 'text-white' : (isDark ? 'text-white' : 'text-gray-800')}>{sess.exam_date} {sess.start_time}-{sess.end_time}</Text>
-                </TouchableOpacity>
-              ))}
+              {loadingSessions ? (
+                <ActivityIndicator size="small" color="#3B82F6" />
+              ) : availableSessions.length === 0 ? (
+                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>No available sessions for this invigilator</Text>
+              ) : (
+                availableSessions.map((sess: any) => (
+                  <TouchableOpacity key={sess.id} onPress={() => setSelectedSession(sess.id)} className={`mr-2 px-3 py-1 rounded-full ${selectedSession === sess.id ? (isDark ? 'bg-blue-600' : 'bg-blue-500') : (isDark ? 'bg-gray-600' : 'bg-gray-200')}`}> 
+                    <Text className={selectedSession === sess.id ? 'text-white' : (isDark ? 'text-white' : 'text-gray-800')}>{sess.exam_date} {sess.start_time}-{sess.end_time}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
             </ScrollView>
             <Text className={`mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>Room</Text>
             <ScrollView horizontal className="mb-4">
@@ -158,7 +210,7 @@ function InvigilatorsTab() {
           </View>
         </View>
       </Modal>
-      {/* {loading ? (
+      {loading ? (
         <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color="#3B82F6" />
           <Text className="mt-4 text-gray-600">Loading assignments...</Text>
@@ -183,13 +235,22 @@ function InvigilatorsTab() {
                   </Text>
                 </View>
                 <View className="flex-row justify-between mb-1">
+                  <Text className="text-gray-600 dark:text-gray-400">Course:</Text>
+                  <Text className="text-gray-800 dark:text-white">
+                    {a.exam_session?.course?.name || 'Unknown Course'} ({a.exam_session?.course?.code || 'N/A'})
+                  </Text>
+                </View>
+                <View className="flex-row justify-between mb-1">
                   <Text className="text-gray-600 dark:text-gray-400">Session:</Text>
                   <Text className="text-gray-800 dark:text-white">
-                    {a.exam_session?.course?.name || 'Unknown Course'} | {a.exam_session?.exam_date} {a.exam_session?.start_time} - {a.exam_session?.end_time}
+                    {a.exam_session?.exam_date} {a.exam_session?.start_time} - {a.exam_session?.end_time}
                   </Text>
                 </View>
                 <View className="flex-row space-x-2 mt-3">
-                  <TouchableOpacity className="flex-1 bg-gray-500 rounded-lg py-2" onPress={() => handleDelete(a.id)}>
+                  <TouchableOpacity className="flex-1 bg-gray-500 rounded-lg py-2" onPress={() => {
+                    // TODO: Implement delete functionality
+                    handleError('Delete functionality not implemented yet', 'Feature Not Available');
+                  }}>
                     <Text className="text-white text-center font-medium">Remove</Text>
                   </TouchableOpacity>
                 </View>
@@ -197,7 +258,7 @@ function InvigilatorsTab() {
             ))
           )}
         </ScrollView>
-      )} */}
+      )}
     </View>
   );
 }

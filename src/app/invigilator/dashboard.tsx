@@ -5,7 +5,7 @@ import { UserCheck, Users, FileText, RefreshCw, LogOut, Wifi, WifiOff, Calendar 
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
 import { useSelectedCourseStore } from '@/contexts/SelectedCourseContext';
-import { supabase, fetchAllInvigilatorAssignments } from '@/utils/supabase';
+import { supabase, fetchCoursesForInvigilator } from '@/utils/supabase';
 import { handleError, handleSuccess, isNetworkError, isDatabaseError, isAuthError } from '@/utils/errorHandler';
 
 export default function DashboardScreen() {
@@ -25,8 +25,14 @@ export default function DashboardScreen() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const assignmentsData = await fetchAllInvigilatorAssignments();
-      setAllAssignments(assignmentsData);
+      
+      // Get current user ID
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) throw new Error('No user logged in');
+
+      const assignmentsData = await fetchCoursesForInvigilator(user.id);
+      setAllAssignments(assignmentsData || []);
     } catch (error) {
       const errorMessage = isNetworkError(error) 
         ? 'Network connection issue. Please check your internet connection.'
@@ -71,8 +77,8 @@ export default function DashboardScreen() {
     return dateString === today;
   };
 
-  const todayAssignments = allAssignments.filter(assignment => isToday(assignment.session.exam_date));
-  const futureAssignments = allAssignments.filter(assignment => !isToday(assignment.session.exam_date));
+  const todayAssignments = allAssignments.filter(assignment => isToday(assignment.exam_session.exam_date));
+  const futureAssignments = allAssignments.filter(assignment => !isToday(assignment.exam_session.exam_date));
 
   const hallName = selectedCourse?.hall || 'Main Hall';
   const totalStudents = selectedCourse?.expectedCount || 0;

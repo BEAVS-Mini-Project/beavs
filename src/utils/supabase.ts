@@ -50,93 +50,9 @@ export async function fetchCourseRoomAllocations(sessionId: string, roomId: stri
   return data;
 }
 
-// Fetch courses assigned to the current invigilator for today, including hall name
-export async function fetchInvigilatorCourses() {
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError) throw userError;
-  if (!user) throw new Error('No user logged in');
 
-  // Get today's date
-  const today = new Date().toISOString().split('T')[0];
 
-  // Get all invigilation assignments for this invigilator for today
-  const { data: assignments, error: assignmentError } = await supabase
-    .from('invigilation_assignment')
-    .select(`
-      *,
-      exam_session:exam_session_id(
-        *,
-        course:course_id(*)
-      ),
-      exam_room:exam_room_id(*)
-    `)
-    .eq('profile_id', user.id)
-    .eq('exam_session.exam_date', today);
-  if (assignmentError) throw assignmentError;
-  if (!assignments || assignments.length === 0) return [];
 
-  // Get course room allocations for the assigned rooms
-  const roomIds = assignments.map(a => a.exam_room_id);
-  const { data: allocations, error: allocError } = await supabase
-    .from('course_room_allocation')
-    .select(`
-      *,
-      exam_session:exam_session_id(
-        *,
-        course:course_id(*)
-      ),
-      exam_room:exam_room_id(*)
-    `)
-    .in('exam_room_id', roomIds)
-    .eq('exam_session.exam_date', today);
-  if (allocError) throw allocError;
-  if (!allocations) return [];
-
-  // Transform the data to match the expected format
-  const result = allocations.map((allocation) => {
-    const session = allocation.exam_session;
-    const course = session?.course;
-    const room = allocation.exam_room;
-    
-    if (!course || !room) return null;
-    
-    return {
-      course: {
-        ...course,
-        expectedCount: allocation.student_count
-      },
-      hallName: room.name,
-      allocation: {
-        id: allocation.id,
-        indexStart: allocation.index_start,
-        indexEnd: allocation.index_end,
-        studentCount: allocation.student_count
-      }
-    };
-  }).filter(Boolean);
-
-  // Remove duplicates by course id and hallName
-  const nonNullResult = result.filter((item): item is { course: any, hallName: string, allocation: any } => !!item);
-  const unique = nonNullResult.filter((item, i, arr) =>
-    arr.findIndex(x => x.course.id === item.course.id && x.hallName === item.hallName) === i
-  );
-  return unique;
-}
-
-// Fetch all invigilation assignments (with session, room, and profile info)
-export async function fetchAllInvigilationAssignments() {
-  const { data, error } = await supabase
-    .from('invigilation_assignment')
-    .select(`
-      *,
-      exam_session:exam_session_id(*, course:course_id(*)),
-      exam_room:exam_room_id(*),
-      profile:profile_id(*)
-    `)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data;
-}
 
 // Create a new invigilation assignment
 export async function createInvigilationAssignment({
@@ -347,77 +263,7 @@ export async function fetchAllRooms() {
   return data;
 }        
 
-// Fetch all invigilation assignments for the current invigilator (current and future)
-export async function fetchAllInvigilatorAssignments() {
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError) throw userError;
-  if (!user) throw new Error('No user logged in');
-
-  // Get all invigilation assignments for this invigilator (current and future)
-  const { data: assignments, error: assignmentError } = await supabase
-    .from('invigilation_assignment')
-    .select(`
-      *,
-      exam_session:exam_session_id(
-        *,
-        course:course_id(*)
-      ),
-      exam_room:exam_room_id(*)
-    `)
-    .eq('profile_id', user.id)
-    .gte('exam_session.exam_date', new Date().toISOString().split('T')[0]) // Only current and future dates
-    .order('exam_session_id', { ascending: true }); // Order by session ID instead of nested fields
-  if (assignmentError) throw assignmentError;
-  if (!assignments || assignments.length === 0) return [];
-
-  // Sort the results in JavaScript after fetching
-  const sortedAssignments = assignments.sort((a, b) => {
-    const dateA = new Date(a.exam_session?.exam_date || '');
-    const dateB = new Date(b.exam_session?.exam_date || '');
-    
-    if (dateA.getTime() !== dateB.getTime()) {
-      return dateA.getTime() - dateB.getTime();
-    }
-    
-    // If dates are the same, sort by start time
-    const timeA = a.exam_session?.start_time || '';
-    const timeB = b.exam_session?.start_time || '';
-    return timeA.localeCompare(timeB);
-  });
-
-  // Transform the data to match the expected format
-  const result = sortedAssignments.map((assignment) => {
-    const session = assignment.exam_session;
-    const course = session?.course;
-    const room = assignment.exam_room;
-    
-    if (!course || !room) return null;
-    
-    return {
-      assignment_id: assignment.id,
-      course: {
-        ...course,
-        expectedCount: 0 // Will be populated from course_room_allocation if needed
-      },
-      hallName: room.name,
-      session: {
-        id: session.id,
-        exam_date: session.exam_date,
-        start_time: session.start_time,
-        end_time: session.end_time,
-        semester: session.semester,
-        academic_year: session.academic_year
-      },
-      room: {
-        id: room.id,
-        name: room.name,
-        capacity: room.capacity
-      }
-    };
-  }).filter(Boolean);
-
-  return result;
-}        
+        
 
 // Fetch students for a given course_room_allocation (by index range)
 export async function fetchStudentsForAllocation({
@@ -444,4 +290,152 @@ export async function fetchStudentsForAllocation({
     return indexNum >= index_start && indexNum <= index_end;
   });
   return filtered;
+}        
+
+// Fetch session IDs where an invigilator is already assigned
+export async function fetchInvigilatorAssignedSessionIds(profileId: string) {
+  const { data, error } = await supabase
+    .from('invigilation_assignment')
+    .select('exam_session_id')
+    .eq('profile_id', profileId);
+  
+  if (error) throw error;
+  
+  // Return array of session IDs
+  return (data || []).map(assignment => assignment.exam_session_id);
+}        
+
+// --- Comprehensive Invigilation Assignment Utilities ---
+
+// Fetch all invigilation assignments with full details
+export async function fetchComprehensiveInvigilationAssignments() {
+  const { data, error } = await supabase
+    .from('invigilation_assignment')
+    .select(`
+      *,
+      profile:profile_id(id, full_name, email),
+      exam_session:exam_session_id(*, course:course_id(id, name, code)),
+      exam_room:exam_room_id(id, name, capacity),
+      assigned_by_profile:assigned_by(id, full_name)
+    `)
+    .order('exam_session_id', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+// Fetch invigilators for a specific course
+export async function fetchInvigilatorsForCourse(courseId: string) {
+  const { data, error } = await supabase
+    .from('invigilation_assignment')
+    .select(`
+      *,
+      profile:profile_id(id, full_name, email),
+      exam_session:exam_session_id(exam_date, start_time, end_time, course:course_id(id)),
+      exam_room:exam_room_id(name)
+    `);
+  if (error) throw error;
+  
+  // Filter for the specific course
+  const filteredData = (data || []).filter(assignment => 
+    assignment.exam_session?.course?.id === courseId
+  );
+  
+  return filteredData;
+}
+
+// Fetch courses for a specific invigilator
+export async function fetchCoursesForInvigilator(profileId: string) {
+  const { data, error } = await supabase
+    .from('invigilation_assignment')
+    .select(`
+      *,
+      exam_session:exam_session_id(*, course:course_id(id, name, code, program_id)),
+      exam_room:exam_room_id(name, capacity)
+    `)
+    .eq('profile_id', profileId)
+    .order('exam_session_id', { ascending: true });
+  
+  if (error) throw error;
+  
+  // Sort client-side by exam date and time
+  const sortedData = (data || []).sort((a, b) => {
+    const dateA = new Date(a.exam_session.exam_date);
+    const dateB = new Date(b.exam_session.exam_date);
+    if (dateA.getTime() !== dateB.getTime()) {
+      return dateA.getTime() - dateB.getTime();
+    }
+    return a.exam_session.start_time.localeCompare(b.exam_session.start_time);
+  });
+  
+  // Transform the data to match the expected format
+  const transformedData = sortedData.map((assignment) => {
+    const session = assignment.exam_session;
+    const course = session?.course;
+    const room = assignment.exam_room;
+    
+    if (!course || !room) return null;
+    
+    return {
+      id: assignment.id,
+      course: {
+        ...course,
+        expectedCount: room.capacity,
+        program_id: course.program_id
+      },
+      hallName: room.name,
+      exam_session: {
+        id: session.id,
+        exam_date: session.exam_date,
+        start_time: session.start_time,
+        end_time: session.end_time
+      },
+      exam_room: {
+        id: room.id,
+        name: room.name,
+        capacity: room.capacity
+      }
+    };
+  }).filter(Boolean);
+  
+  return transformedData;
+}
+
+// Fetch invigilator availability (sessions where they are NOT assigned)
+export async function fetchInvigilatorAvailability(profileId: string) {
+  const { data: allSessions, error: sessionsError } = await supabase
+    .from('exam_session')
+    .select('*, course:course_id(id, name, code)')
+    .order('exam_date', { ascending: true });
+  if (sessionsError) throw sessionsError;
+  const assignedSessionIds = await fetchInvigilatorAssignedSessionIds(profileId);
+  const availableSessions = allSessions?.filter(session => !assignedSessionIds.includes(session.id)) || [];
+  return availableSessions;
+}
+
+// Fetch room assignments for a specific session
+export async function fetchRoomAssignmentsForSession(sessionId: string) {
+  const { data, error } = await supabase
+    .from('invigilation_assignment')
+    .select(`
+      *,
+      profile:profile_id(id, full_name, email),
+      exam_room:exam_room_id(id, name, capacity)
+    `)
+    .eq('exam_session_id', sessionId);
+  if (error) throw error;
+  return data || [];
+}
+
+
+
+// Fetch course room allocation for a specific session and room
+export async function fetchCourseRoomAllocationForSession(sessionId: string, roomId: string) {
+  const { data, error } = await supabase
+    .from('course_room_allocation')
+    .select('*')
+    .eq('exam_session_id', sessionId)
+    .eq('exam_room_id', roomId)
+    .single();
+  if (error) throw error;
+  return data;
 }        

@@ -18,45 +18,45 @@ const Index = () => {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         if (sessionError) throw sessionError;
         
-        if (!session) {
+      if (!session) {
           handleInfo('Redirecting to login', 'Welcome');
-          Router.replace('/login');
-          return;
-        }
+        Router.replace('/login');
+        return;
+      }
 
-        // Get user id
-        const userId = session.user.id;
+      // Get user id
+      const userId = session.user.id;
         
-        // Fetch role from profiles table
+      // Fetch role from profiles table
         const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', userId)
-          .single();
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
         
         if (profileError) throw profileError;
         
-        const userRole = profile?.role;
+      const userRole = profile?.role;
         if (!userRole) {
           handleError('No role assigned to user', 'Access Denied');
           Router.replace('/login');
           return;
         }
 
-        if (userRole === 'admin') {
+      if (userRole === 'admin') {
           handleInfo('Redirecting to Admin Dashboard', 'Welcome');
-          Router.replace('/admin');
-        } else if (userRole === 'invigilator') {
+        Router.replace('/admin');
+      } else if (userRole === 'invigilator') {
           handleInfo('Redirecting to Invigilator Dashboard', 'Welcome');
-          Router.replace('/invigilator');
-        } else {
+        Router.replace('/invigilator');
+      } else {
           handleError('Invalid user role', 'Access Denied');
           Router.replace('/login');
         }
       } catch (error) {
         if (isAuthError(error)) {
           handleError(error, 'Authentication Error');
-          Router.replace('/login');
+        Router.replace('/login');
         } else {
           handleError(error, 'Session Check');
         }
