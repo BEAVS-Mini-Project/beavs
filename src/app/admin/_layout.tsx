@@ -4,6 +4,7 @@ import { TouchableOpacity } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { router } from 'expo-router';
 import { supabase } from '@/utils/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function AdminLayout() {
   return (
@@ -21,11 +22,20 @@ export default function AdminLayout() {
         headerTintColor: '#FFFFFF',
         headerRight: () => (
           <TouchableOpacity
-            onPress={() => {
-              supabase.auth.signOut();
-              router.replace('/login') }
-            }
-             
+            onPress={async () => {
+              try {
+                await supabase.auth.signOut();
+                await AsyncStorage.clear();
+                router.replace('/login');
+                // Additional safety: reset navigation stack
+                setTimeout(() => {
+                  router.replace('/login');
+                }, 100);
+              } catch (error) {
+                console.error('Logout error:', error);
+                router.replace('/login');
+              }
+            }}
             className="mr-4"
           >
             <FontAwesome name="sign-out" size={20} color="#FFFFFF" />

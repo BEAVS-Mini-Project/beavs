@@ -290,6 +290,66 @@ export async function fetchStudentsForAllocation({
     return indexNum >= index_start && indexNum <= index_end;
   });
   return filtered;
+}
+
+// Fetch students for a specific course using course_id
+export async function fetchStudentsForCourse(courseId: string) {
+  // First get the course to find its program_id
+  const { data: course, error: courseError } = await supabase
+    .from('course')
+    .select('program_id')
+    .eq('id', courseId)
+    .single();
+  
+  if (courseError) throw courseError;
+  if (!course?.program_id) throw new Error('Course has no program_id');
+  
+  // Then fetch all students in that program
+  const { data: students, error: studentsError } = await supabase
+    .from('student')
+    .select('*')
+    .eq('program_id', course.program_id);
+  
+  if (studentsError) throw studentsError;
+  return students || [];
+}
+
+// Fetch students for a specific course room allocation
+export async function fetchStudentsForCourseRoomAllocation(allocationId: string) {
+  // Get the allocation details
+  const { data: allocation, error: allocationError } = await supabase
+    .from('course_room_allocation')
+    .select(`
+      index_start,
+      index_end,
+      course:course_id(program_id)
+    `)
+    .eq('id', allocationId)
+    .single();
+  
+  if (allocationError) throw allocationError;
+  if (!allocation) throw new Error('Allocation not found');
+  
+  const program_id = (allocation as any).course?.program_id;
+  if (!program_id) throw new Error('Course has no program_id');
+  
+  // Fetch students in the program within the index range
+  const { data: students, error: studentsError } = await supabase
+    .from('student')
+    .select('*')
+    .eq('program_id', program_id);
+  
+  if (studentsError) throw studentsError;
+  
+  // Filter by index range
+  const filtered = (students || []).filter((student) => {
+    const match = student.index_number.match(/(\d+)$/);
+    if (!match) return false;
+    const indexNum = parseInt(match[1], 10);
+    return indexNum >= allocation.index_start && indexNum <= allocation.index_end;
+  });
+  
+  return filtered;
 }        
 
 // Fetch session IDs where an invigilator is already assigned
@@ -438,4 +498,120 @@ export async function fetchCourseRoomAllocationForSession(sessionId: string, roo
     .single();
   if (error) throw error;
   return data;
+}
+
+// Fetch attendance statistics for a specific course room allocation
+export async function fetchAttendanceStats(allocationId: string) {
+  const { data, error } = await supabase
+    .from('attendance_log')
+    .select('*')
+    .eq('course_room_allocation_id', allocationId);
+  
+  if (error) throw error;
+  
+  const attendanceRecords = data || [];
+  
+  // Count different types of attendance
+  const presentStudents = attendanceRecords.filter(record => record.method === 'biometric').length;
+  const manualOverrides = attendanceRecords.filter(record => record.method === 'manual').length;
+  const totalPresent = presentStudents + manualOverrides;
+  
+  return {
+    totalPresent,
+    presentStudents,
+    manualOverrides,
+    attendanceRecords
+  };
+}
+
+// Fetch attendance statistics for today's sessions for an invigilator
+export async function fetchTodayAttendanceStats(profileId: string) {
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Get today's assignments for this invigilator
+  const { data: assignments, error: assignmentsError } = await supabase
+    .from('invigilation_assignment')
+    .select(`
+      *,
+      exam_session:exam_session_id(exam_date, course:course_id(id, name)),
+      exam_room:exam_room_id(id, name)
+    `)
+    .eq('profile_id', profileId)
+    .eq('exam_session.exam_date', today);
+  
+  if (assignmentsError) throw assignmentsError;
+  
+  let totalPresent = 0;
+  let totalManualOverrides = 0;
+  let totalExpected = 0;
+  
+  // For each assignment, get the attendance stats
+  for (const assignment of assignments || []) {
+    const sessionId = assignment.exam_session_id;
+    const roomId = assignment.exam_room_id;
+    
+    // Get the course room allocation
+    const allocation = await fetchCourseRoomAllocationForSession(sessionId, roomId);
+    if (allocation) {
+      totalExpected += allocation.student_count;
+      
+      // Get attendance stats for this allocation
+      const stats = await fetchAttendanceStats(allocation.id);
+      totalPresent += stats.totalPresent;
+      totalManualOverrides += stats.manualOverrides;
+    }
+  }
+  
+  const totalAbsent = totalExpected - totalPresent;
+  
+  return {
+    totalPresent,
+    totalManualOverrides,
+    totalExpected,
+    totalAbsent,
+    assignments: assignments || []
+  };
+}
+
+// Fetch attendance statistics for a specific assignment
+export async function fetchAssignmentAttendanceStats(assignmentId: string) {
+  const { data: assignment, error: assignmentError } = await supabase
+    .from('invigilation_assignment')
+    .select(`
+      *,
+      exam_session:exam_session_id(exam_date, course:course_id(id, name)),
+      exam_room:exam_room_id(id, name, capacity)
+    `)
+    .eq('id', assignmentId)
+    .single();
+  
+  if (assignmentError) throw assignmentError;
+  
+  // Get the course room allocation
+  const allocation = await fetchCourseRoomAllocationForSession(
+    assignment.exam_session_id,
+    assignment.exam_room_id
+  );
+  
+  if (!allocation) {
+    return {
+      totalPresent: 0,
+      presentStudents: 0,
+      manualOverrides: 0,
+      totalExpected: 0,
+      totalAbsent: 0
+    };
+  }
+  
+  // Get attendance stats
+  const stats = await fetchAttendanceStats(allocation.id);
+  const totalAbsent = allocation.student_count - stats.totalPresent;
+  
+  return {
+    totalPresent: stats.totalPresent,
+    presentStudents: stats.presentStudents,
+    manualOverrides: stats.manualOverrides,
+    totalExpected: allocation.student_count,
+    totalAbsent
+  };
 }        

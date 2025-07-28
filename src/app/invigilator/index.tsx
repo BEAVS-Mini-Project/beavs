@@ -13,14 +13,48 @@ export default function InvigilatorIndex() {
   const [allAssignments, setAllAssignments] = useState<any[]>([]);
   const [todayCourses, setTodayCourses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authChecked, setAuthChecked] = useState(false);
   const router = useRouter();
   const setSelectedCourse = useSelectedCourseStore((state) => state.setSelectedCourse);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
 
   useEffect(() => {
-    loadData();
+    checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (authChecked) {
+      loadData();
+    }
+  }, [authChecked]);
+
+  const checkAuth = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.replace('/login');
+        return;
+      }
+      
+      // Check if user is an invigilator
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      
+      if (profile?.role !== 'invigilator') {
+        router.replace('/login');
+        return;
+      }
+      
+      setAuthChecked(true);
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      router.replace('/login');
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -90,6 +124,7 @@ export default function InvigilatorIndex() {
 
   const handleCourseSelect = async (item: any) => {
     try {
+
       // Fetch allocation data for this session and room
       const allocation = await fetchCourseRoomAllocationForSession(
         item.exam_session.id, // Use session ID
@@ -99,6 +134,7 @@ export default function InvigilatorIndex() {
       // Pass the complete item structure to include all necessary data
       setSelectedCourse({
         ...item.course,
+        title: item.course.name, // Map name to title for compatibility
         hall: item.hallName,
         allocation: allocation ? {
           id: allocation.id,
@@ -132,12 +168,14 @@ export default function InvigilatorIndex() {
     return timeString.substring(0, 5); // Remove seconds
   };
 
-  if (loading) {
+  if (!authChecked || loading) {
     return (
       <SafeAreaView className={`flex-1 ${isDark ? 'bg-black' : 'bg-white'}`}>
         <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color="#3B82F6" />
-          <Text className={`text-lg ${isDark ? 'text-white' : 'text-black'}`}>Loading assignments...</Text>
+          <Text className={`text-lg ${isDark ? 'text-white' : 'text-black'}`}>
+            {!authChecked ? 'Checking authentication...' : 'Loading assignments...'}
+          </Text>
         </View>
       </SafeAreaView>
     );
